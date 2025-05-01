@@ -5,6 +5,10 @@ from hivemind_exp.trainer.hivemind_grpo_trainer import HivemindGRPOTrainer
 
 
 class TestnetGRPOTrainer(HivemindGRPOTrainer):
+    def __init__(self, coordinator: SwarmCoordinator, **kwargs) -> None:
+        self.coordinator = coordinator
+        super().__init__(**kwargs)
+
     def train_stage_and_save(self, trainer, train_dataset):
         super().train_stage_and_save(trainer, train_dataset)
         self.coordinator.submit_reward(
@@ -13,10 +17,7 @@ class TestnetGRPOTrainer(HivemindGRPOTrainer):
             int(trainer.stage_rewards),
             self.node.key,
         )
-
-    def __init__(self, coordinator: SwarmCoordinator, **kwargs) -> None:
-        self.coordinator = coordinator
-        super().__init__(**kwargs)
+        self.cleanup()  # 清理资源，防止 OOM 或资源堆积
 
     def submit_winners(self, round_num: int, winners: Sequence[str]):
         self.logger.info(f"🏆 Submitting winners for round {round_num}: {winners}")
