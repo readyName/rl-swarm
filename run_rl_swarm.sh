@@ -171,7 +171,7 @@ check_cuda_installation() {
             if [ $? -eq 0 ]; then
                 echo -e "${GREEN}${BOLD}[✓] CUDA installation script completed successfully${NC}"
                 source ~/.profile 2>/dev/null || true
-                source ~/.bashrc 2>/dev/null || true
+                source ~/.zshrc 2>/dev/null || true
                 
                 if [ -f "/etc/profile.d/cuda.sh" ]; then
                     source /etc/profile.d/cuda.sh
@@ -261,17 +261,12 @@ done
 
 cleanup() {
     echo -e "${YELLOW}${BOLD}[✓] Shutting down processes...${NC}"
-    rm -r $ROOT_DIR/modal-login/temp-data/*.json 2> /dev/null || true
     kill $SERVER_PID 2>/dev/null || true
     kill $TUNNEL_PID 2>/dev/null || true
     exit 0
 }
 
 trap cleanup INT
-
-if ls "$HOME/rl-swarm/modal-login/temp-data/"*.json 1> /dev/null 2>&1; then
-  rm -r $HOME/rl-swarm/modal-login/temp-data/*.json 2> /dev/null || true
-fi
 
 sleep 2
 
@@ -282,28 +277,15 @@ if [ -f "modal-login/temp-data/userData.json" ]; then
     npm install --legacy-peer-deps
     
     echo -e "\n${CYAN}${BOLD}[✓] Starting the development server...${NC}"
-    if ! command -v ss &>/dev/null; then
-      echo -e "${YELLOW}[!] 'ss' not found. Attempting to install 'iproute2'...${NC}"
-      if command -v apt &>/dev/null; then
-        sudo apt update && sudo apt install -y iproute2
-      elif command -v yum &>/dev/null; then
-        sudo yum install -y iproute
-      elif command -v pacman &>/dev/null; then
-        sudo pacman -Sy iproute2
-      else
-        echo -e "${RED}[✗] Could not install 'ss'. Package manager not found.${NC}"
-        exit 1
-      fi
-    fi
-    
-    PORT_LINE=$(ss -ltnp | grep ":3000 ")
+    # Use lsof to check port 3000 on macOS
+    PORT_LINE=$(lsof -i :3000)
     if [ -n "$PORT_LINE" ]; then
-      PID=$(echo "$PORT_LINE" | grep -oP 'pid=\K[0-9]+')
-      if [ -n "$PID" ]; then
-        echo -e "${YELLOW}[!] Port 3000 is in use. Killing process: $PID${NC}"
-        kill -9 $PID
-        sleep 2
-      fi
+        PID=$(lsof -t -i :3000)
+        if [ -n "$PID" ]; then
+            echo -e "${YELLOW}[!] Port 3000 is in use. Killing process: $PID${NC}"
+            kill -9 $PID
+            sleep 2
+        fi
     fi
     
     npm run dev > server.log 2>&1 &
@@ -338,28 +320,15 @@ else
     npm install --legacy-peer-deps
     
     echo -e "\n${CYAN}${BOLD}[✓] Starting the development server...${NC}"
-    if ! command -v ss &>/dev/null; then
-      echo -e "${YELLOW}[!] 'ss' not found. Attempting to install 'iproute2'...${NC}"
-      if command -v apt &>/dev/null; then
-        sudo apt update && sudo apt install -y iproute2
-      elif command -v yum &>/dev/null; then
-        sudo yum install -y iproute
-      elif command -v pacman &>/dev/null; then
-        sudo pacman -Sy iproute2
-      else
-        echo -e "${RED}[✗] Could not install 'ss'. Package manager not found.${NC}"
-        exit 1
-      fi
-    fi
-    
-    PORT_LINE=$(ss -ltnp | grep ":3000 ")
+    # Use lsof to check port 3000 on macOS
+    PORT_LINE=$(lsof -i :3000)
     if [ -n "$PORT_LINE" ]; then
-      PID=$(echo "$PORT_LINE" | grep -oP 'pid=\K[0-9]+')
-      if [ -n "$PID" ]; then
-        echo -e "${YELLOW}[!] Port 3000 is in use. Killing process: $PID${NC}"
-        kill -9 $PID
-        sleep 2
-      fi
+        PID=$(lsof -t -i :3000)
+        if [ -n "$PID" ]; then
+            echo -e "${YELLOW}[!] Port 3000 is in use. Killing process: $PID${NC}"
+            kill -9 $PID
+            sleep 2
+        fi
     fi
     
     npm run dev > server.log 2>&1 &
