@@ -58,8 +58,6 @@ cleanup() {
     echo_green ">> Shutting down trainer..."
 
     # Kill all processes belonging to this script's process group
-    kill -- -$$ || true
-
     exit 0
 }
 
