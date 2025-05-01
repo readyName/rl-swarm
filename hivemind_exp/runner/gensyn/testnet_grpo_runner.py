@@ -6,9 +6,7 @@ from typing import Callable, Tuple
 from datasets import Dataset
 from trl import GRPOConfig, ModelConfig
 
-from hivemind_exp.chain_utils import (
-    SwarmCoordinator,
-)
+from hivemind_exp.chain_utils import SwarmCoordinator
 from hivemind_exp.runner.grpo_runner import GRPOArguments, GRPORunner
 from hivemind_exp.trainer.gensyn.testnet_grpo_trainer import TestnetGRPOTrainer
 
@@ -58,10 +56,34 @@ class TestnetGRPORunner(GRPORunner):
             logger.info("Proceeding as bootnode!")
 
         grpo_args.initial_peers = initial_peers
+
+        # 调用父类 run 方法，同时注入定制 trainer
         super().run(
             model_args,
             grpo_args,
             training_args,
             initial_datasets_fn,
-            partial(TestnetGRPOTrainer, coordinator=self.coordinator),
+            trainer_factory_fn=partial(TestnetGRPOTrainer, coordinator=self.coordinator),
         )
+
+        ##################
+        # 训练完成后清理资源
+        ##################
+        logger.info("✅ Testnet 模式训练完成，开始清理资源...")
+        import gc
+        try:
+            del self.coordinator
+        except Exception:
+            pass
+        gc.collect()
+
+        # 适配 macOS 的 MPS 显存释放
+        if torch.backends.mps.is_available():
+            try:
+                import torch
+                torch.mps.empty_cache()
+                logger.info("🧹 MPS 显存清理完成")
+            except Exception as e:
+                logger.warning(f"⚠️ MPS 清理失败: {e}")
+
+        logger.info("🧹 Testnet 训练流程资源已全部清理。")
