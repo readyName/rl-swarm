@@ -31,7 +31,7 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
   RL_PID=$!
 
   # ✅ Wait for Python child process to initialize
-  sleep 300
+  sleep 100
   PY_PID=$(pgrep -P $RL_PID -f python | head -n 1)
 
   if [ -z "$PY_PID" ]; then
