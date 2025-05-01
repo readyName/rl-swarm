@@ -9,30 +9,6 @@ log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
 }
 
-# ====== ✅ Expect script to automate input ======
-cat << 'EOF' > run_rl_swarm.exp
-#!/usr/bin/expect -f
-
-set timeout -1
-spawn ./run_rl_swarm.sh
-
-# Swarm selection
-expect "Please select a swarm to join:\n\[A\] Math\n\[B\] Math Hard"
-send "A\r"
-
-# Parameter size selection
-expect "How many parameters (in billions)? \[0.5, 1.5, 7, 32, 72\]"
-send "0.5\r"
-
-# Hugging Face push selection
-expect "Would you like to push models you train in the RL swarm to the Hugging Face Hub? \[y/N\]"
-send "N\r"
-
-interact
-EOF
-
-chmod +x run_rl_swarm.exp
-
 # ====== 🔁 Start daemon loop ======
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
   log "🚀 Attempt $((RETRY_COUNT + 1)): Starting RL Swarm..."
@@ -49,12 +25,13 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
     log "✅ p2pd process terminated."
   fi
 
-  # ✅ Start main script in background using expect
-  ./run_rl_swarm.exp &
+  # ✅ Start main script in background with automated input
+  log "✅ Providing automated input: A, 0.5, N"
+  echo -e "A\n0.5\nN" | ./run_rl_swarm.sh &
   RL_PID=$!
 
   # ✅ Wait for Python child process to initialize
-  sleep 60
+  sleep 300
   PY_PID=$(pgrep -P $RL_PID -f python | head -n 1)
 
   if [ -z "$PY_PID" ]; then
