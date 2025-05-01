@@ -36,8 +36,6 @@ save_steps: 25
 seed: 42
 
 # Script arguments
-public_maddr: "/ip4/38.101.215.12/tcp/30002"
-host_maddr: "/ip4/0.0.0.0/tcp/38331"
 max_rounds: 10000
 max_grad_norm: 0.5
 
