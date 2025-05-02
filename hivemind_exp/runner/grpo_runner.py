@@ -36,6 +36,7 @@ from hivemind_exp.trainer.hivemind_grpo_trainer import HivemindGRPOTrainer
 
 logger = logging.getLogger(__name__)
 
+MAX_SEQ_LENGTH = 4096
 
 @dataclass
 class GRPOArguments:
@@ -80,7 +81,7 @@ class GRPORunner:
                 load_in_8bit=False,
                 fast_inference=True,
                 use_exact_model_name=True,
-                max_seq_length=4096,
+                max_seq_length=MAX_SEQ_LENGTH,
                 gpu_memory_utilization=self.peak_memory_percentage,
                 **model_init_kwargs,
             )[0]
@@ -183,6 +184,8 @@ class GRPORunner:
         )
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
+
+        tokenizer._tokenizer.enable_truncation(MAX_SEQ_LENGTH)
 
         #########################
         # Create DHT via Hivemind
