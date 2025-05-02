@@ -24,7 +24,7 @@ const TURNKEY_BASE_URL = "https://api.turnkey.com";
 const ALCHEMY_BASE_URL = "https://api.g.alchemy.com";
 
 export async function POST(request: Request) {
-  const body: { orgId: string; roundNumber: bigint; winners: string[] } = await request
+  const body: { orgId: string; roundNumber: bigint; winners: string[]; peerID: string } = await request
     .json()
     .catch((err) => {
       console.error(err);
@@ -103,13 +103,18 @@ export async function POST(request: Request) {
                   name: "winners",
                   type: "string[]",
                 },
+                {
+                  internalType: "string",
+                  name: "peerId",
+                  type: "string",
+                }
               ],
               outputs: [],
               stateMutability: "nonpayable",
             },
           ],
           functionName: "submitWinners",
-          args: [body.roundNumber, body.winners], // Your function arguments
+          args: [body.roundNumber, body.winners, body.peerID], // Your function arguments
         }),
       },
     });
