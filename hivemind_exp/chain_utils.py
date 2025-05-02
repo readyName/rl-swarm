@@ -10,7 +10,7 @@ ALCHEMY_URL = "https://gensyn-testnet.g.alchemy.com/public"
 
 MAINNET_CHAIN_ID = 685685
 
-SWARM_COORDINATOR_VERSION = "0.4"
+SWARM_COORDINATOR_VERSION = "0.4.2"
 SWARM_COORDINATOR_ABI_JSON = (
     f"hivemind_exp/contracts/SwarmCoordinator_{SWARM_COORDINATOR_VERSION}.json"
 )
