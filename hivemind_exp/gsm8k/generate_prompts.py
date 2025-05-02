@@ -137,7 +137,7 @@ def get_unique_critic_ids(cols):
     return {a: i for i, a in enumerate(sorted_agent_ids(cols, "agent_opinion_"))}
 
 
-def pick_k_cols(cols, datum, current_stage, default_k=15, method="top_k"):
+def pick_k_cols(cols, datum, current_stage, default_k=5, method="top_k"):
     # Filter columns according to current round
     if current_stage == 2:
         prefix = "agent_answers"
