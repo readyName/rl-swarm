@@ -103,9 +103,9 @@ export async function POST(request: Request) {
                   type: "uint256"
                 },
                 {
-                  internalType: "uint256",
+                  internalType: "int256",
                   name: "reward",
-                  type: "uint256"
+                  type: "int256"
                 },
                 {
                   internalType: "string",
