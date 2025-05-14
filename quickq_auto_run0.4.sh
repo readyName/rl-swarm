@@ -112,7 +112,7 @@ while :; do
                 echo "[$(date +"%T")] 状态变化：已建立VPN连接"
             fi
             reconnect_count=0
-            sleep 30
+            sleep 60
             continue
         else
             echo "[$(date +"%T")] 检测到网络不通"
@@ -142,5 +142,5 @@ while :; do
         sleep 10
         initialize_app
     fi
-    sleep 60
+    sleep 5
 done
