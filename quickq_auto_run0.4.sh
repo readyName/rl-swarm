@@ -2,130 +2,145 @@
 
 APP_NAME="QuickQ"
 APP_PATH="/Applications/QuickQ For Mac.app"
-ICON_X=1720
-ICON_Y=260
-ICON_Z=430  # ICON_z
 
-#  cliclick 
+# 坐标参数说明：
+# 连接操作坐标
+DROP_DOWN_BUTTON_X=1720  # 下拉按钮X
+DROP_DOWN_BUTTON_Y=430   # 下拉按钮Y
+CONNECT_BUTTON_X=1720    # 连接按钮X
+CONNECT_BUTTON_Y=260     # 连接按钮Y
+
+# 初始化操作坐标
+SETTINGS_BUTTON_X=1869   # 设置按钮X
+SETTINGS_BUTTON_Y=165    # 设置按钮Y
+
+# 检查 cliclick 依赖
 if ! command -v cliclick &> /dev/null; then
-    echo "cliclick  Homebrew ..."
-    if command -v brew &> /dev/null; then
-        brew install cliclick
-    else
-        echo " Homebrew Homebrew "
+    echo "正在通过Homebrew安装cliclick..."
+    if ! command -v brew &> /dev/null; then
+        echo "错误：请先安装Homebrew (https://brew.sh)"
         exit 1
     fi
+    brew install cliclick
 fi
 
 reconnect_count=0
+last_vpn_status="disconnected"
 
-while true
-do
-    if pgrep -f "$APP_NAME" > /dev/null; then
-        if ping -c 2 -W 2 google.com > /dev/null 2>&1; then
-            echo "$(date): $APP_NAME VPN"
-            reconnect_count=0
-        else
-            echo "$(date): $APP_NAME VPN"
+# VPN状态检测函数
+check_vpn_connection() {
+    local TEST_URLS=(
+        "https://x.com"
+        "https://www.google.com"
+    )
+    local TIMEOUT=3
 
-            osascript <<'EOF'
-            tell application "System Events"
-                set isRunning to exists (processes where name is "QuickQ For Mac")
-                if not isRunning then
-                    display dialog "QuickQ " buttons {"OK"} default button 1
-                    return
-                end if
-                tell application "QuickQ For Mac" to activate
-                delay 1
-                tell process "QuickQ For Mac"
+    for url in "${TEST_URLS[@]}"; do
+        if curl --silent --head --fail --max-time $TIMEOUT "$url" &> /dev/null; then
+            echo "[$(date +"%T")] VPN检测：可通过 $url"
+            last_vpn_status="connected"
+            return 0
+        fi
+    done
+    last_vpn_status="disconnected"
+    return 1
+}
+
+# 窗口位置校准函数
+adjust_window() {
+    osascript <<'EOF'
+    tell application "System Events"
+        tell process "QuickQ For Mac"
+            repeat 3 times  # 增加重试机制
+                if exists window 1 then
                     set position of window 1 to {1520, 0}
                     set size of window 1 to {400, 300}
-                end tell
-            end tell
+                    exit repeat
+                else
+                    delay 0.5
+                end if
+            end repeat
+        end tell
+    end tell
 EOF
+    echo "[$(date +"%T")] 窗口位置已校准"
+    sleep 1  # 关键等待
+}
 
-            cliclick c:${ICON_X},${ICON_Z}
-            sleep 1
-            cliclick c:${ICON_X},${ICON_Y}
-            echo "$(date): "
-            sleep 20
+# 执行标准连接流程
+connect_procedure() {
+    # 激活窗口
+    osascript -e 'tell application "QuickQ For Mac" to activate'
+    sleep 0.5
+    
+    adjust_window
+    
+    # 点击连接序列
+    cliclick c:${DROP_DOWN_BUTTON_X},${DROP_DOWN_BUTTON_Y}
+    echo "[$(date +"%T")] 已点击下拉菜单"
+    sleep 1
+    
+    cliclick c:${CONNECT_BUTTON_X},${CONNECT_BUTTON_Y}
+    echo "[$(date +"%T")] 已发起连接请求"
+    sleep 15  # 连接等待时间
+}
 
-            reconnect_count=$((reconnect_count+1))
-            echo ": $reconnect_count"
+# 应用重启初始化流程
+initialize_app() {
+    echo "[$(date +"%T")] 执行初始化操作..."
+    osascript -e 'tell application "QuickQ For Mac" to activate'
+    adjust_window  # 新增窗口校准
+    
+    # 点击设置按钮
+    cliclick c:${SETTINGS_BUTTON_X},${SETTINGS_BUTTON_Y}
+    echo "[$(date +"%T")] 已点击设置按钮"
+    sleep 2
+    
+    connect_procedure
+}
 
-            if [ "$reconnect_count" -ge 10 ]; then
-                echo "10 $APP_NAME "
-                pids=$(pgrep -f "$APP_NAME")
-                if [ -n "$pids" ]; then
-                    echo ": $pids..."
-                    kill -9 $pids
-                    echo ""
-                fi
+# 安全终止应用
+terminate_app() {
+    echo "[$(date +"%T")] 正在停止应用..."
+    pkill -9 -f "$APP_NAME" && echo "[$(date +"%T")] 已终止残留进程"
+}
+
+while :; do
+    if pgrep -f "$APP_NAME" &> /dev/null; then
+        if check_vpn_connection; then
+            if [ "$last_vpn_status" == "disconnected" ]; then
+                echo "[$(date +"%T")] 状态变化：已建立VPN连接"
+            fi
+            reconnect_count=0
+            sleep 30
+            continue
+        else
+            echo "[$(date +"%T")] 检测到网络不通"
+            
+            if [ $reconnect_count -lt 3 ]; then
+                connect_procedure
+                ((reconnect_count++))
+                echo "[$(date +"%T")] 重试次数：$reconnect_count/3"
+            else
+                echo "[$(date +"%T")] 达到重试上限，执行应用重置"
+                terminate_app
+                
+                # 重启流程
                 open "$APP_PATH"
-                sleep 3
-                osascript <<'EOF'
-                tell application "System Events"
-                    set isRunning to exists (processes where name is "QuickQ For Mac")
-                    if not isRunning then
-                        display dialog "QuickQ " buttons {"OK"} default button 1
-                        return
-                    end if
-                    tell application "QuickQ For Mac" to activate
-                    delay 1
-                    tell process "QuickQ For Mac"
-                        set position of window 1 to {1520, 0}
-                        set size of window 1 to {400, 300}
-                    end tell
-                end tell
-EOF
-                echo "$(date): $APP_NAME VPN"
-                sleep 5
-                cliclick c:${ICON_X},${ICON_Z}
-                sleep 1
-                cliclick c:${ICON_X},${ICON_Y}
-                echo "$(date): "
-                sleep 20
+                echo "[$(date +"%T")] 应用启动中..."
+                sleep 10  # 延长启动等待
+                
+                initialize_app  # 包含窗口校准和初始化点击
+                
                 reconnect_count=0
+                sleep 10  # 重启后缓冲期
             fi
         fi
     else
-        echo "$(date): $APP_NAME "
-        pids=$(pgrep -f "$APP_NAME")
-        if [ -n "$pids" ]; then
-            echo ": $pids..."
-            kill -9 $pids
-            echo ""
-        fi
-
-        echo " $APP_NAME"
-        sleep 1
+        echo "[$(date +"%T")] 应用未运行，正在启动..."
         open "$APP_PATH"
-        sleep 3
-        osascript <<'EOF'
-        tell application "System Events"
-            set isRunning to exists (processes where name is "QuickQ For Mac")
-            if not isRunning then
-                display dialog "QuickQ " buttons {"OK"} default button 1
-                return
-            end if
-            tell application "QuickQ For Mac" to activate
-            delay 1
-            tell process "QuickQ For Mac"
-                set position of window 1 to {1520, 0}
-                set size of window 1 to {400, 300}
-            end tell
-        end tell
-EOF
-        echo "$(date): $APP_NAME VPN"
-        sleep 5
-        cliclick c:${ICON_X},${ICON_Z}
-        sleep 1
-        cliclick c:${ICON_X},${ICON_Y}
-        echo "$(date): "
-        sleep 20
-        reconnect_count=0
+        sleep 10
+        initialize_app
     fi
-
-    #  
     sleep 60
 done
