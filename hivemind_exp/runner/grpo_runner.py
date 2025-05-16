@@ -4,6 +4,7 @@ import gc
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Callable, Tuple
+import time
 
 import torch
 
@@ -140,16 +141,31 @@ class GRPORunner:
         return animal_name
 
     def setup_dht(self, grpo_args):
-        initial_peers = grpo_args.initial_peers
-        dht = hivemind.DHT(start=True, startup_timeout=120, **self._dht_kwargs(grpo_args))
-        if initial_peers:
-            logger.info(f"🐝 Joining swarm with initial_peers = {initial_peers}")
-        else:
-            first_visible = str(dht.get_visible_maddrs()[0])
-            logger.info(f"🤖 Starting swarm at {first_visible}")
+        max_retries = 100  # 最大重试次数
+        retry_interval = 5  # 重试间隔(秒)
+        startup_timeout = 300  # DHT启动超时时间(秒)
+        
+        for attempt in range(max_retries):
+            try:
+                initial_peers = grpo_args.initial_peers
+                dht = hivemind.DHT(start=True, startup_timeout=startup_timeout, **self._dht_kwargs(grpo_args))
+                if initial_peers:
+                    logger.info(f"🐝 Joining swarm with initial_peers = {initial_peers}")
+                else:
+                    first_visible = str(dht.get_visible_maddrs()[0])
+                    logger.info(f"🤖 Starting swarm at {first_visible}")
 
-        self.name = self._get_animal_name(str(dht.peer_id))
-        return dht
+                self.name = self._get_animal_name(str(dht.peer_id))
+                return dht
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    logger.warning(f"DHT setup failed (attempt {attempt + 1}/{max_retries}): {str(e)}")
+                    logger.info(f"Retrying in {retry_interval} seconds...")
+                    time.sleep(retry_interval)
+                    continue
+                else:
+                    logger.error(f"Failed to setup DHT after {max_retries} attempts")
+                    raise
 
     def run(
         self,
