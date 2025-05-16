@@ -22,8 +22,33 @@ if ! command -v cliclick &> /dev/null; then
         exit 1
     fi
     brew install cliclick
+    
+    # ===== 新增功能开始 =====
+    echo "[$(date +"%T")] 依赖安装完成，正在执行一次性权限触发操作..."
+    
+    # 启动应用
+    open "$APP_PATH"
+    sleep 5  # 等待应用启动
+    
+    # 执行窗口调整和点击
+    osascript -e 'tell application "QuickQ For Mac" to activate'
+    sleep 1
+    
+    # 窗口校准函数调用
+    adjust_window
+    
+    # 点击设置按钮（触发权限请求）
+    cliclick c:${SETTINGS_BUTTON_X},${SETTINGS_BUTTON_Y}
+    echo "[$(date +"%T")] 已触发点击事件，请检查系统权限请求"
+    echo "[$(date +"%T")] 等待10秒以便您处理权限对话框..."
+    sleep 10
+    
+    # 安全终止应用（因为主循环会重新启动它）
+    pkill -9 -f "$APP_NAME"
+    # ===== 新增功能结束 =====
 fi
 
+# 以下是原有脚本内容保持不变 ▼▼▼
 reconnect_count=0
 last_vpn_status="disconnected"
 
@@ -112,7 +137,7 @@ while :; do
                 echo "[$(date +"%T")] 状态变化：已建立VPN连接"
             fi
             reconnect_count=0
-            sleep 60
+            sleep 30
             continue
         else
             echo "[$(date +"%T")] 检测到网络不通"
