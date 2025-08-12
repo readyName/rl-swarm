@@ -261,13 +261,24 @@ while :; do
                 echo "[$(date +"%T")] 状态变化：已建立VPN连接"
             fi
             reconnect_count=0
-            total_wait=600
+            
+            # 20分钟强制重连计时器
+            total_wait=1200  # 20分钟 = 1200秒
             while [ $total_wait -gt 0 ]; do
                 remaining_min=$((total_wait / 60))
-                echo "[$(date +"%T")] 下次检测将在 ${remaining_min} 分钟后进行..."
+                echo "[$(date +"%T")] 下次强制重连将在 ${remaining_min} 分钟后进行..."
                 sleep 60
                 total_wait=$((total_wait - 60))
             done
+            
+            # 20分钟时间到，强制重连
+            echo "[$(date +"%T")] 20分钟计时结束，执行强制重连..."
+            terminate_app
+            sleep 2
+            open "$APP_PATH"
+            echo "[$(date +"%T")] 应用启动中..."
+            sleep 10
+            initialize_app
             continue
         else
             echo "[$(date +"%T")] 检测到VPN未连接"
