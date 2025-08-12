@@ -19,9 +19,8 @@ end tell
 EOF
 sleep 2
 
-# 2. 启动VPN（新终端窗口，放在最左下角使底部与nexus对齐，长度1/2，宽度2/3）
-osascript -e 'tell app "Terminal" to do script "cd ~/rl-swarm && ./quickq_run.sh"'
-echo "✅ VPN已启动，等待2秒后启动Docker..."
+# 2. 跳过VPN启动（用户选择不启动quickq）
+echo "⏭️ 跳过VPN启动，直接启动Docker..."
 sleep 2
 
 # 获取屏幕尺寸
@@ -101,8 +100,8 @@ osascript -e 'tell app "Terminal" to do script "cd ~/rl-swarm && ./ritual.sh"'
 sleep 1
 arrange_window "Ritual" $((x1+quickq_width+lower_item_width+2*spacing)) $nexus_ritual_y $lower_item_width $nexus_ritual_height
 
-# 8. 排列VPN窗口（最左下角，底部与nexus对齐，长度1/2，宽度2/3）
-arrange_window "quickq" $x1 $quickq_y $quickq_width $quickq_height
+# 8. 跳过VPN窗口排列（用户选择不启动quickq）
+echo "⏭️ 跳过VPN窗口排列"
 
 echo "✅ 所有项目已启动完成！"
 echo "   - Docker已在后台运行"
