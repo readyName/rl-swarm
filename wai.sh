@@ -131,14 +131,10 @@ run_wai_worker() {
         else
             log "✅ 无wai run进程需要清理"
         fi
-        log "✅ 启动 Worker（限时30分钟）..."
-        run_with_timeout 1800 env POSTHOG_DISABLED=true "$WAI_CMD" run
+        log "✅ 启动 Worker（无时间限制）..."
+        env POSTHOG_DISABLED=true "$WAI_CMD" run
         EXIT_CODE=$?
-        if [ $EXIT_CODE -eq 124 ]; then
-            warn "⏰ Worker 已运行30分钟，强制重启..."
-            RETRY=1
-            sleep 2
-        elif [ $EXIT_CODE -ne 0 ]; then
+        if [ $EXIT_CODE -ne 0 ]; then
             warn "⚠️ Worker 异常退出（退出码 $EXIT_CODE），等待 10 秒后重试..."
             sleep 10
             RETRY=$(( RETRY < 8 ? RETRY+1 : 8 ))
