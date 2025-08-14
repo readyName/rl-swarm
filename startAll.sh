@@ -37,10 +37,14 @@ function arrange_window {
     local w=$4
     local h=$5
     
+    # 计算窗口边界
+    local right_x=$((x + w))
+    local bottom_y=$((y + h))
+    
     osascript <<EOF
 tell application "Terminal"
-    set targetWindow to first window whose name contains "${title}"
-    set bounds of targetWindow to {${x}, ${y}, ${x}+${w}, ${y}+${h}}
+    set targetWindow to first window whose name contains "$title"
+    set bounds of targetWindow to {$x, $y, $right_x, $bottom_y}
 end tell
 EOF
 }
