@@ -117,6 +117,13 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
   PEERID_QUERY_INTERVAL=10800
   PEERID_QUERY_TIMER=0
   FIRST_QUERY_DONE=0
+  
+  # 新增：日志更新检测参数
+  LOG_CHECK_INTERVAL=600        # 每10分钟检测一次日志
+  LOG_CHECK_TIMER=0
+  LOG_FILE="logs/swarm_launcher.log"  # 检测的日志文件
+  LOG_TIMEOUT_MINUTES=20        # 20分钟无更新则重启
+  LOG_TIMEOUT_SECONDS=$((LOG_TIMEOUT_MINUTES * 60))
 
   # 如果未找到 PY_PID，使用 RL_PID 进行监控
   if [ -z "$PY_PID" ]; then
@@ -131,6 +138,7 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
     sleep 2
     MEM_CHECK_TIMER=$((MEM_CHECK_TIMER + 2))
     PEERID_QUERY_TIMER=$((PEERID_QUERY_TIMER + 2))
+    LOG_CHECK_TIMER=$((LOG_CHECK_TIMER + 2))
     if [ $MEM_CHECK_TIMER -ge $MEM_CHECK_INTERVAL ]; then
       MEM_CHECK_TIMER=0
       if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -161,6 +169,39 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
         fi
       else
         log "⏳ 未检测到 Peer ID 日志文件，等待下次查询..."
+      fi
+    fi
+    
+    # 新增：检测日志更新状态
+    if [ $LOG_CHECK_TIMER -ge $LOG_CHECK_INTERVAL ]; then
+      LOG_CHECK_TIMER=0  # 重置计时器
+      
+      if [ -f "$LOG_FILE" ]; then
+        # 获取日志文件的最后修改时间
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+          # macOS 使用 stat -f %m 获取最后修改时间戳
+          LAST_MODIFY_TIME=$(stat -f %m "$LOG_FILE" 2>/dev/null)
+        else
+          # Linux 使用 stat -c %Y 获取最后修改时间戳
+          LAST_MODIFY_TIME=$(stat -c %Y "$LOG_FILE" 2>/dev/null)
+        fi
+        
+        if [[ -n "$LAST_MODIFY_TIME" ]]; then
+          CURRENT_TIME=$(date +%s)
+          TIME_DIFF=$((CURRENT_TIME - LAST_MODIFY_TIME))
+          
+          if [ $TIME_DIFF -gt $LOG_TIMEOUT_SECONDS ]; then
+            log "🚨 日志文件超过 ${LOG_TIMEOUT_MINUTES} 分钟未更新（${TIME_DIFF}秒），自动重启节点！"
+            cleanup restart
+            break
+          else
+            log "✅ 日志文件正常更新，最后更新时间：${TIME_DIFF}秒前"
+          fi
+        else
+          log "⚠️ 无法获取日志文件修改时间，跳过本次检测"
+        fi
+      else
+        log "⏳ 日志文件不存在，等待下次检测..."
       fi
     fi
   done
