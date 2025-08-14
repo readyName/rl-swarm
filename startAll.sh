@@ -19,9 +19,6 @@ end tell
 EOF
 sleep 2
 
-# 2. 跳过VPN启动（用户选择不启动quickq）
-echo "⏭️ 跳过VPN启动，直接启动Docker..."
-sleep 2
 
 # 获取屏幕尺寸
 screen_size=$(osascript -e 'tell application "Finder" to get bounds of window of desktop')
@@ -41,12 +38,8 @@ function arrange_window {
     local right_x=$((x + w))
     local bottom_y=$((y + h))
     
-    osascript <<EOF
-tell application "Terminal"
-    set targetWindow to first window whose name contains "$title"
-    set bounds of targetWindow to {$x, $y, $right_x, $bottom_y}
-end tell
-EOF
+    # 使用 osascript -e 避免 here document 变量替换问题
+    osascript -e "tell application \"Terminal\" to set bounds of first window whose name contains \"$title\" to {$x, $y, $right_x, $bottom_y}"
 }
 
 # 布局参数
@@ -96,9 +89,6 @@ arrange_window "nexus" $x1 $nexus_ritual_y $lower_item_width $nexus_ritual_heigh
 osascript -e 'tell app "Terminal" to do script "cd ~/rl-swarm && ./ritual.sh"'
 sleep 1
 arrange_window "Ritual" $((x1+lower_item_width+spacing)) $nexus_ritual_y $lower_item_width $nexus_ritual_height
-
-# 8. 跳过VPN窗口排列（用户选择不启动quickq）
-echo "⏭️ 跳过VPN窗口排列"
 
 echo "✅ 所有项目已启动完成！"
 echo "   - Docker已在后台运行"
