@@ -20,11 +20,38 @@ EOF
 sleep 2
 
 
-# 获取屏幕尺寸
-screen_size=$(osascript -e 'tell application "Finder" to get bounds of window of desktop')
-read -r x1 y1 x2 y2 <<< $(echo $screen_size | tr ',' ' ')
-width=$((x2-x1))
-height=$((y2-y1))
+# 获取屏幕尺寸（使用系统信息替代Finder）
+echo "正在获取屏幕尺寸..."
+if command -v system_profiler >/dev/null 2>&1; then
+    # macOS 使用 system_profiler 获取屏幕信息
+    screen_info=$(system_profiler SPDisplaysDataType | grep Resolution | head -1 | awk '{print $2, $4}' | tr 'x' ' ')
+    if [[ -n "$screen_info" ]]; then
+        read -r width height <<< "$screen_info"
+        x1=0
+        y1=0
+        x2=$width
+        y2=$height
+        echo "检测到屏幕尺寸: ${width}x${height}"
+    else
+        # 默认值
+        width=1920
+        height=1080
+        x1=0
+        y1=0
+        x2=1920
+        y2=1080
+        echo "使用默认屏幕尺寸: ${width}x${height}"
+    fi
+else
+    # 备用方案：使用默认值
+    width=1920
+    height=1080
+    x1=0
+    y1=0
+    x2=1920
+    y2=1080
+    echo "使用默认屏幕尺寸: ${width}x${height}"
+fi
 
 # 窗口排列函数
 function arrange_window {
@@ -38,8 +65,22 @@ function arrange_window {
     local right_x=$((x + w))
     local bottom_y=$((y + h))
     
+    echo "排列窗口 '$title': 位置($x, $y), 大小(${w}x${h}), 边界(${right_x}x${bottom_y})"
+    
     # 使用 osascript -e 避免 here document 变量替换问题
-    osascript -e "tell application \"Terminal\" to set bounds of first window whose name contains \"$title\" to {$x, $y, $right_x, $bottom_y}"
+    if osascript -e "tell application \"Terminal\" to set bounds of first window whose name contains \"$title\" to {$x, $y, $right_x, $bottom_y}" 2>/dev/null; then
+        echo "✅ 窗口 '$title' 排列成功"
+    else
+        echo "⚠️ 窗口 '$title' 排列失败，尝试备用方法..."
+        # 备用方法：使用窗口ID
+        local window_id=$(osascript -e "tell application \"Terminal\" to id of first window whose name contains \"$title\"" 2>/dev/null)
+        if [[ -n "$window_id" ]]; then
+            osascript -e "tell application \"Terminal\" to set bounds of window id $window_id to {$x, $y, $right_x, $bottom_y}" 2>/dev/null
+            echo "✅ 窗口 '$title' (ID: $window_id) 排列成功"
+        else
+            echo "❌ 无法找到窗口 '$title'"
+        fi
+    fi
 }
 
 # 布局参数
