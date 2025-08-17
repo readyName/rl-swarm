@@ -216,50 +216,6 @@ cleanup_exit() {
     # macOS: 先获取窗口信息，再终止进程，最后关闭窗口
     log "${BLUE}正在获取 Nexus 相关窗口信息...${NC}"
     
-    # 先识别并记录相关窗口的编号（在进程终止前）
-    local window_ids=()
-    local all_windows=$(osascript -e 'tell application "Terminal" to get id of every window' 2>/dev/null || echo "")
-    
-    if [[ -n "$all_windows" ]]; then
-      log "${BLUE}当前所有终端窗口编号: $all_windows${NC}"
-      
-      # 获取所有窗口的详细信息（编号和名称）
-      local window_info=$(osascript -e 'tell application "Terminal" to get {id, name} of every window' 2>/dev/null || echo "")
-      
-      # 获取当前终端的窗口ID（保护当前终端不被关闭）
-      local current_window_id=$(osascript -e 'tell app "Terminal" to id of front window' 2>/dev/null || echo "")
-      log "${BLUE}当前运行脚本的终端窗口ID: $current_window_id（将被保护，不会关闭）${NC}"
-      
-      # 查找可能包含 Nexus 相关内容的窗口
-      # 将逗号分隔的窗口ID转换为数组
-      IFS=',' read -ra window_array <<< "$all_windows"
-      
-      for window_id in "${window_array[@]}"; do
-        # 清理窗口ID，移除空格
-        window_id=$(echo "$window_id" | tr -d ' ')
-        
-        # 跳过空的窗口ID
-        [[ -z "$window_id" ]] && continue
-        
-        # 获取该窗口的名称
-        local window_name=$(osascript -e 'tell application "Terminal" to get name of window id '"$window_id" 2>/dev/null || echo "")
-        
-        if [[ -n "$window_name" ]]; then
-          # 检查窗口名称是否包含node-id关键词（只关闭运行节点的窗口）
-          if [[ "$window_name" =~ "node-id" ]]; then
-            
-            # 确保不关闭当前终端窗口
-            if [[ "$window_id" != "$current_window_id" ]] && [[ -n "$current_window_id" ]]; then
-              window_ids+=("$window_id")
-              log "${BLUE}发现需要关闭的 Nexus 节点窗口: ID=$window_id${NC}"
-            else
-              log "${YELLOW}跳过当前运行脚本的窗口: ID=$window_id${NC}"
-            fi
-          fi
-        fi
-      done
-    fi
-    
     # 现在终止进程
     log "${BLUE}正在终止 Nexus 节点进程...${NC}"
     
@@ -332,39 +288,34 @@ cleanup_exit() {
   if [[ "$OS_TYPE" == "macOS" ]]; then
     log "${BLUE}正在关闭 Nexus 节点终端窗口...${NC}"
     
-    # 使用之前保存的窗口ID关闭窗口
-    if [[ ${#window_ids[@]} -gt 0 ]]; then
-      log "${BLUE}检测到需要关闭的目标窗口ID: ${window_ids[*]}${NC}"
-      log "${BLUE}正在关闭之前识别的 ${#window_ids[@]} 个 Nexus 相关窗口...${NC}"
+    # 获取当前终端的窗口ID并保护此终端不被关闭
+    current_window_id=$(osascript -e 'tell app "Terminal" to id of front window' 2>/dev/null || echo "")
+    if [[ -n "$current_window_id" ]]; then
+      log "${BLUE}当前终端窗口ID: $current_window_id，正在保护此终端不被关闭...${NC}"
       
-      for window_id in "${window_ids[@]}"; do
-        log "${BLUE}正在关闭窗口 ID: $window_id${NC}"
-        osascript -e "tell application \"Terminal\" to close window id $window_id saving no" 2>/dev/null || true
-      done
+      # 关闭包含node-id的窗口，但保护当前窗口
+      osascript <<EOF
+tell application "Terminal"
+    activate
+    set windowList to every window
+    repeat with theWindow in windowList
+        if id of theWindow is not ${current_window_id} then
+            if name of theWindow contains "node-id" then
+                try
+                    close theWindow saving no
+                end try
+            end if
+        end if
+    end repeat
+end tell
+EOF
       
       sleep 10
       log "${BLUE}窗口关闭完成，等待10秒后继续...${NC}"
-      
-      # 验证窗口是否已关闭
-      local remaining_windows=$(osascript -e 'tell application "Terminal" to get name of every window' 2>/dev/null || echo "")
-      log "${BLUE}关闭后剩余窗口: $remaining_windows${NC}"
     else
-      log "${YELLOW}未找到 Nexus 相关窗口，使用备用方案...${NC}"
-      # 备用方案：使用通用关键词关闭（但保护当前窗口）
-      if [[ -n "$current_window_id" ]]; then
-        log "${BLUE}使用保护性备用方案，避免关闭当前脚本窗口${NC}"
-        osascript -e 'tell application "Terminal"
-          repeat with w in windows
-            if name of w contains "node-id" and id of w is not '"$current_window_id"' then
-              try
-                close w saving no
-              end try
-            end if
-          end repeat
-        end tell' 2>/dev/null || true
-      else
-        osascript -e 'tell application "Terminal" to close (every window whose name contains "node-id")' 2>/dev/null || true
-      fi
+      log "${YELLOW}无法获取当前窗口ID，使用备用方案...${NC}"
+      # 备用方案：直接关闭包含node-id的窗口
+      osascript -e 'tell application "Terminal" to close (every window whose name contains "node-id")' 2>/dev/null || true
     fi
   fi
   
@@ -385,50 +336,6 @@ cleanup_restart() {
     # macOS: 先获取窗口信息，再终止进程，最后关闭窗口
     log "${BLUE}正在获取 Nexus 相关窗口信息...${NC}"
     
-    # 先识别并记录相关窗口的编号（在进程终止前）
-    local window_ids=()
-    local all_windows=$(osascript -e 'tell application "Terminal" to get id of every window' 2>/dev/null || echo "")
-    
-    if [[ -n "$all_windows" ]]; then
-      log "${BLUE}当前所有终端窗口编号: $all_windows${NC}"
-      
-      # 获取所有窗口的详细信息（编号和名称）
-      local window_info=$(osascript -e 'tell application "Terminal" to get {id, name} of every window' 2>/dev/null || echo "")
-      
-      # 获取当前终端的窗口ID（保护当前终端不被关闭）
-      local current_window_id=$(osascript -e 'tell app "Terminal" to id of front window' 2>/dev/null || echo "")
-      log "${BLUE}当前运行脚本的终端窗口ID: $current_window_id（将被保护，不会关闭）${NC}"
-      
-      # 查找可能包含 Nexus 相关内容的窗口
-      # 将逗号分隔的窗口ID转换为数组
-      IFS=',' read -ra window_array <<< "$all_windows"
-      
-      for window_id in "${window_array[@]}"; do
-        # 清理窗口ID，移除空格
-        window_id=$(echo "$window_id" | tr -d ' ')
-        
-        # 跳过空的窗口ID
-        [[ -z "$window_id" ]] && continue
-        
-        # 获取该窗口的名称
-        local window_name=$(osascript -e 'tell application "Terminal" to get name of window id '"$window_id" 2>/dev/null || echo "")
-        
-        if [[ -n "$window_name" ]]; then
-          # 检查窗口名称是否包含node-id关键词（只关闭运行节点的窗口）
-          if [[ "$window_name" =~ "node-id" ]]; then
-            
-            # 确保不关闭当前终端窗口
-            if [[ "$window_id" != "$current_window_id" ]] && [[ -n "$current_window_id" ]]; then
-              window_ids+=("$window_id")
-              log "${BLUE}发现需要关闭的 Nexus 节点窗口: ID=$window_id${NC}"
-            else
-              log "${YELLOW}跳过当前运行脚本的窗口: ID=$window_id${NC}"
-            fi
-          fi
-        fi
-      done
-    fi
-    
     # 现在终止进程
     log "${BLUE}正在终止 Nexus 节点进程...${NC}"
     
@@ -501,28 +408,34 @@ cleanup_restart() {
   if [[ "$OS_TYPE" == "macOS" ]]; then
     log "${BLUE}正在关闭 Nexus 节点终端窗口...${NC}"
     
-    # 使用之前保存的窗口ID关闭窗口
-    if [[ ${#window_ids[@]} -gt 0 ]]; then
-      log "${BLUE}检测到需要关闭的目标窗口ID: ${window_ids[*]}${NC}"
-      log "${BLUE}正在关闭之前识别的 ${#window_ids[@]} 个 Nexus 相关窗口...${NC}"
+    # 获取当前终端的窗口ID并保护此终端不被关闭
+    current_window_id=$(osascript -e 'tell app "Terminal" to id of front window' 2>/dev/null || echo "")
+    if [[ -n "$current_window_id" ]]; then
+      log "${BLUE}当前终端窗口ID: $current_window_id，正在保护此终端不被关闭...${NC}"
       
-      for window_id in "${window_ids[@]}"; do
-        log "${BLUE}正在关闭窗口 ID: $window_id${NC}"
-        osascript -e "tell application \"Terminal\" to close window id $window_id saving no" 2>/dev/null || true
-      done
+      # 关闭包含node-id的窗口，但保护当前窗口
+      osascript <<EOF
+tell application "Terminal"
+    activate
+    set windowList to every window
+    repeat with theWindow in windowList
+        if id of theWindow is not ${current_window_id} then
+            if name of theWindow contains "node-id" then
+                try
+                    close theWindow saving no
+                end try
+            end if
+        end if
+    end repeat
+end tell
+EOF
       
       sleep 10
       log "${BLUE}窗口关闭完成，等待10秒后继续...${NC}"
-      
-      # 验证窗口是否已关闭
-      local remaining_windows=$(osascript -e 'tell application "Terminal" to get name of every window' 2>/dev/null || echo "")
-      log "${BLUE}关闭后剩余窗口: $remaining_windows${NC}"
     else
-      log "${YELLOW}未找到 Nexus 相关窗口，使用备用方案...${NC}"
-      # 备用方案：使用通用关键词关闭
-      osascript -e 'tell application "Terminal" to close (every window whose name contains "nexus")' 2>/dev/null || true
-      osascript -e 'tell application "Terminal" to close (every window whose name contains "nexus-network")' 2>/dev/null || true
-      osascript -e 'tell application "Terminal" to close (every window whose name contains "nexus-cli")' 2>/dev/null || true
+      log "${YELLOW}无法获取当前窗口ID，使用备用方案...${NC}"
+      # 备用方案：直接关闭包含node-id的窗口
+      osascript -e 'tell application "Terminal" to close (every window whose name contains "node-id")' 2>/dev/null || true
     fi
   fi
   
