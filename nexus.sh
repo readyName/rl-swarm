@@ -228,7 +228,7 @@ cleanup_exit() {
       
       # 获取当前终端的窗口ID（保护当前终端不被关闭）
       local current_window_id=$(osascript -e 'tell app "Terminal" to id of front window' 2>/dev/null || echo "")
-      log "${BLUE}当前终端窗口ID: $current_window_id（将被保护）${NC}"
+      log "${BLUE}当前运行脚本的终端窗口ID: $current_window_id（将被保护，不会关闭）${NC}"
       
       # 查找可能包含 Nexus 相关内容的窗口
       # 将逗号分隔的窗口ID转换为数组
@@ -245,15 +245,15 @@ cleanup_exit() {
         local window_name=$(osascript -e 'tell application "Terminal" to get name of window id '"$window_id" 2>/dev/null || echo "")
         
         if [[ -n "$window_name" ]]; then
-          # 检查窗口名称是否包含相关关键词
-          if [[ "$window_name" =~ nexus ]] || \
-             [[ "$window_name" =~ "nexus-network" ]] || \
-             [[ "$window_name" =~ "nexus-cli" ]]; then
+          # 检查窗口名称是否包含node-id关键词（只关闭运行节点的窗口）
+          if [[ "$window_name" =~ "node-id" ]]; then
             
             # 确保不关闭当前终端窗口
-            if [[ "$window_id" != "$current_window_id" ]]; then
+            if [[ "$window_id" != "$current_window_id" ]] && [[ -n "$current_window_id" ]]; then
               window_ids+=("$window_id")
-              log "${BLUE}发现 Nexus 相关窗口: ID=$window_id${NC}"
+              log "${BLUE}发现需要关闭的 Nexus 节点窗口: ID=$window_id${NC}"
+            else
+              log "${YELLOW}跳过当前运行脚本的窗口: ID=$window_id${NC}"
             fi
           fi
         fi
@@ -350,10 +350,21 @@ cleanup_exit() {
       log "${BLUE}关闭后剩余窗口: $remaining_windows${NC}"
     else
       log "${YELLOW}未找到 Nexus 相关窗口，使用备用方案...${NC}"
-      # 备用方案：使用通用关键词关闭
-      osascript -e 'tell application "Terminal" to close (every window whose name contains "nexus")' 2>/dev/null || true
-      osascript -e 'tell application "Terminal" to close (every window whose name contains "nexus-network")' 2>/dev/null || true
-      osascript -e 'tell application "Terminal" to close (every window whose name contains "nexus-cli")' 2>/dev/null || true
+      # 备用方案：使用通用关键词关闭（但保护当前窗口）
+      if [[ -n "$current_window_id" ]]; then
+        log "${BLUE}使用保护性备用方案，避免关闭当前脚本窗口${NC}"
+        osascript -e 'tell application "Terminal"
+          repeat with w in windows
+            if name of w contains "node-id" and id of w is not '"$current_window_id"' then
+              try
+                close w saving no
+              end try
+            end if
+          end repeat
+        end tell' 2>/dev/null || true
+      else
+        osascript -e 'tell application "Terminal" to close (every window whose name contains "node-id")' 2>/dev/null || true
+      fi
     fi
   fi
   
@@ -386,7 +397,7 @@ cleanup_restart() {
       
       # 获取当前终端的窗口ID（保护当前终端不被关闭）
       local current_window_id=$(osascript -e 'tell app "Terminal" to id of front window' 2>/dev/null || echo "")
-      log "${BLUE}当前终端窗口ID: $current_window_id（将被保护）${NC}"
+      log "${BLUE}当前运行脚本的终端窗口ID: $current_window_id（将被保护，不会关闭）${NC}"
       
       # 查找可能包含 Nexus 相关内容的窗口
       # 将逗号分隔的窗口ID转换为数组
@@ -403,19 +414,15 @@ cleanup_restart() {
         local window_name=$(osascript -e 'tell application "Terminal" to get name of window id '"$window_id" 2>/dev/null || echo "")
         
         if [[ -n "$window_name" ]]; then
-          log "${BLUE}窗口 $window_id 名称: $window_name${NC}"
-          
-          # 检查窗口名称是否包含相关关键词
-          if [[ "$window_name" =~ nexus ]] || \
-             [[ "$window_name" =~ "nexus-network" ]] || \
-             [[ "$window_name" =~ "nexus-cli" ]]; then
+          # 检查窗口名称是否包含node-id关键词（只关闭运行节点的窗口）
+          if [[ "$window_name" =~ "node-id" ]]; then
             
             # 确保不关闭当前终端窗口
-            if [[ "$window_id" != "$current_window_id" ]]; then
+            if [[ "$window_id" != "$current_window_id" ]] && [[ -n "$current_window_id" ]]; then
               window_ids+=("$window_id")
-              log "${BLUE}发现相关窗口: ID=$window_id, 名称=$window_name${NC}"
+              log "${BLUE}发现需要关闭的 Nexus 节点窗口: ID=$window_id${NC}"
             else
-              log "${BLUE}跳过当前终端窗口: ID=$window_id${NC}"
+              log "${YELLOW}跳过当前运行脚本的窗口: ID=$window_id${NC}"
             fi
           fi
         fi
