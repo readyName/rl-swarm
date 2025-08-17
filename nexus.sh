@@ -585,16 +585,37 @@ start_node() {
   log "${BLUE}正在启动 Nexus 节点 (Node ID: $NODE_ID_TO_USE)...${NC}"
   rotate_log
   
-  if [[ "$OS_TYPE" == "macOS" ]]; then
-    # macOS: 新开终端窗口启动节点
-    log "${BLUE}在 macOS 中打开新终端窗口启动节点...${NC}"
-    osascript -e 'tell application "Terminal"
-      set newWindow to do script "cd ~ && echo \"🚀 正在启动 Nexus 节点...\" && nexus-network start --node-id '"$NODE_ID_TO_USE"' && echo \"✅ 节点已启动，按任意键关闭窗口...\" && read -n 1"
-      tell front window
-        set number of columns to 109
-        set number of rows to 32
-      end tell
-    end tell'
+     if [[ "$OS_TYPE" == "macOS" ]]; then
+     # macOS: 新开终端窗口启动节点，并设置到指定位置
+     log "${BLUE}在 macOS 中打开新终端窗口启动节点...${NC}"
+     
+     # 获取屏幕尺寸
+     screen_info=$(system_profiler SPDisplaysDataType | grep Resolution | head -1 | awk '{print $2, $4}' | tr 'x' ' ')
+     if [[ -n "$screen_info" ]]; then
+       read -r screen_width screen_height <<< "$screen_info"
+     else
+       screen_width=1920
+       screen_height=1080
+     fi
+     
+     # 计算窗口位置（与 startAll.sh 中 nexus 位置一致）
+     spacing=20
+     upper_height=$(((screen_height/2) - (2*spacing)))
+     lower_height=$(((screen_height/2) - (2*spacing)))
+     lower_y=$((upper_height + (2*spacing)))
+     lower_item_width=$(((screen_width - spacing) / 2))
+     nexus_ritual_height=$((lower_height - 30))
+     nexus_ritual_y=$((lower_y + 5))
+     
+     # 启动节点并设置窗口位置
+     osascript <<EOF
+tell application "Terminal"
+  set newWindow to do script "cd ~ && echo \"🚀 正在启动 Nexus 节点...\" && nexus-network start --node-id $NODE_ID_TO_USE && echo \"✅ 节点已启动，按任意键关闭窗口...\" && read -n 1"
+  tell front window
+    set bounds to {0, $nexus_ritual_y, $lower_item_width, $((nexus_ritual_y + nexus_ritual_height))}
+  end tell
+end tell
+EOF
     
     # 等待一下确保窗口打开
     sleep 3
@@ -603,14 +624,16 @@ start_node() {
     if pgrep -f "nexus-network start" > /dev/null; then
       log "${GREEN}Nexus 节点已在新终端窗口中启动${NC}"
     else
-      log "${YELLOW}nexus-network 启动失败，尝试用 nexus-cli 启动...${NC}"
-              osascript -e 'tell application "Terminal"
-          set newWindow to do script "cd ~ && echo \"🚀 正在启动 Nexus 节点...\" && nexus-cli start --node-id '"$NODE_ID_TO_USE"' && echo \"✅ 节点已启动，按任意键关闭窗口...\" && read -n 1"
-          tell front window
-            set number of columns to 109
-            set number of rows to 32
-          end tell
-        end tell'
+             log "${YELLOW}nexus-network 启动失败，尝试用 nexus-cli 启动...${NC}"
+       # 使用相同的窗口位置设置
+       osascript <<EOF
+tell application "Terminal"
+  set newWindow to do script "cd ~ && echo \"🚀 正在启动 Nexus 节点...\" && nexus-cli start --node-id $NODE_ID_TO_USE && echo \"✅ 节点已启动，按任意键关闭窗口...\" && read -n 1"
+  tell front window
+    set bounds to {0, $nexus_ritual_y, $lower_item_width, $((nexus_ritual_y + nexus_ritual_height))}
+  end tell
+end tell
+EOF
       sleep 3
       
       if pgrep -f "nexus-cli start" > /dev/null; then
