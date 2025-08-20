@@ -580,11 +580,12 @@ start_node() {
       lower_height=$(((screen_height/2) - (2*spacing)))
       lower_y=$((upper_height + (2*spacing)))
       
-      # 设置窗口位置：距离左边界30px
-      lower_item_width=$(((screen_width - spacing) / 2))  # 窗口宽度
-      nexus_ritual_height=$((lower_height - 30))
-      nexus_ritual_y=$((lower_y + 5))
-      nexus_x=30  # 距离左边界30px
+      # 计算 nexus 在 startAll.sh 中的确切位置
+      upper_item_width=$(((screen_width - spacing) / 2))  # 上层两个窗口的参考宽度，中间留20px间距
+      lower_item_width=$(((screen_width - spacing) / 2))  # nexus和Ritual平分宽度，中间留20px间距
+      nexus_ritual_height=$((lower_height - 30))  # nexus和Ritual高度减小30px
+      nexus_ritual_y=$((lower_y + 5))  # nexus和Ritual向下移动5px
+      nexus_x=0  # nexus在下层左侧
       
       # 启动节点并设置窗口位置和大小（103x31）
       osascript <<EOF
