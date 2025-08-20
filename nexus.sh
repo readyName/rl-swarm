@@ -216,6 +216,14 @@ cleanup_exit() {
     # macOS: 先获取窗口信息，再终止进程，最后关闭窗口
     log "${BLUE}正在获取 Nexus 相关窗口信息...${NC}"
     
+    # 获取包含nexus的窗口ID
+    nexus_window_id=$(osascript -e 'tell app "Terminal" to id of first window whose name contains "node-id"' 2>/dev/null || echo "")
+    if [[ -n "$nexus_window_id" ]]; then
+      log "${BLUE}发现 Nexus 窗口ID: $nexus_window_id，准备关闭...${NC}"
+    else
+      log "${YELLOW}未找到 Nexus 窗口，第一次启动，跳过关闭操作${NC}"
+    fi
+    
     # 现在终止进程
     log "${BLUE}正在终止 Nexus 节点进程...${NC}"
     
@@ -282,40 +290,20 @@ cleanup_exit() {
   fi
   
   # 等待所有进程完全清理
-  sleep 3
+  sleep 5
   
   # 最后才关闭窗口（确保所有进程都已终止）
   if [[ "$OS_TYPE" == "macOS" ]]; then
     log "${BLUE}正在关闭 Nexus 节点终端窗口...${NC}"
     
-    # 获取当前终端的窗口ID并保护此终端不被关闭
-    current_window_id=$(osascript -e 'tell app "Terminal" to id of front window' 2>/dev/null || echo "")
-    if [[ -n "$current_window_id" ]]; then
-      log "${BLUE}当前终端窗口ID: $current_window_id，正在保护此终端不被关闭...${NC}"
-      
-      # 关闭包含node-id的窗口，但保护当前窗口
-      osascript <<EOF
-tell application "Terminal"
-    activate
-    set windowList to every window
-    repeat with theWindow in windowList
-        if id of theWindow is not ${current_window_id} then
-            if name of theWindow contains "node-id" then
-                try
-                    close theWindow saving no
-                end try
-            end if
-        end if
-    end repeat
-end tell
-EOF
-      
-      sleep 10
-      log "${BLUE}窗口关闭完成，等待10秒后继续...${NC}"
+    if [[ -n "$nexus_window_id" ]]; then
+      # 直接关闭找到的nexus窗口
+      log "${BLUE}关闭 Nexus 窗口 (ID: $nexus_window_id)...${NC}"
+      osascript -e "tell application \"Terminal\" to close window id $nexus_window_id saving no" 2>/dev/null || true
+      sleep 2
+      log "${BLUE}窗口关闭完成${NC}"
     else
-      log "${YELLOW}无法获取当前窗口ID，使用备用方案...${NC}"
-      # 备用方案：直接关闭包含node-id的窗口
-      osascript -e 'tell application "Terminal" to close (every window whose name contains "node-id")' 2>/dev/null || true
+      log "${YELLOW}没有找到 Nexus 窗口，跳过关闭操作${NC}"
     fi
   fi
   
@@ -336,6 +324,14 @@ cleanup_restart() {
     # macOS: 先获取窗口信息，再终止进程，最后关闭窗口
     log "${BLUE}正在获取 Nexus 相关窗口信息...${NC}"
     
+    # 获取包含nexus的窗口ID
+    nexus_window_id=$(osascript -e 'tell app "Terminal" to id of first window whose name contains "node-id"' 2>/dev/null || echo "")
+    if [[ -n "$nexus_window_id" ]]; then
+      log "${BLUE}发现 Nexus 窗口ID: $nexus_window_id，准备关闭...${NC}"
+    else
+      log "${YELLOW}未找到 Nexus 窗口，第一次启动，跳过关闭操作${NC}"
+    fi
+    
     # 现在终止进程
     log "${BLUE}正在终止 Nexus 节点进程...${NC}"
     
@@ -402,40 +398,20 @@ cleanup_restart() {
   fi
   
   # 等待所有进程完全清理
-  sleep 3
+  sleep 5
   
   # 最后才关闭窗口（确保所有进程都已终止）
   if [[ "$OS_TYPE" == "macOS" ]]; then
     log "${BLUE}正在关闭 Nexus 节点终端窗口...${NC}"
     
-    # 获取当前终端的窗口ID并保护此终端不被关闭
-    current_window_id=$(osascript -e 'tell app "Terminal" to id of front window' 2>/dev/null || echo "")
-    if [[ -n "$current_window_id" ]]; then
-      log "${BLUE}当前终端窗口ID: $current_window_id，正在保护此终端不被关闭...${NC}"
-      
-      # 关闭包含node-id的窗口，但保护当前窗口
-      osascript <<EOF
-tell application "Terminal"
-    activate
-    set windowList to every window
-    repeat with theWindow in windowList
-        if id of theWindow is not ${current_window_id} then
-            if name of theWindow contains "node-id" then
-                try
-                    close theWindow saving no
-                end try
-            end if
-        end if
-    end repeat
-end tell
-EOF
-      
-      sleep 10
-      log "${BLUE}窗口关闭完成，等待10秒后继续...${NC}"
+    if [[ -n "$nexus_window_id" ]]; then
+      # 直接关闭找到的nexus窗口
+      log "${BLUE}关闭 Nexus 窗口 (ID: $nexus_window_id)...${NC}"
+      osascript -e "tell application \"Terminal\" to close window id $nexus_window_id saving no" 2>/dev/null || true
+      sleep 2
+      log "${BLUE}窗口关闭完成${NC}"
     else
-      log "${YELLOW}无法获取当前窗口ID，使用备用方案...${NC}"
-      # 备用方案：直接关闭包含node-id的窗口
-      osascript -e 'tell application "Terminal" to close (every window whose name contains "node-id")' 2>/dev/null || true
+      log "${YELLOW}没有找到 Nexus 窗口，跳过关闭操作${NC}"
     fi
   fi
   
