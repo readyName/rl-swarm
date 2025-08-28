@@ -8,6 +8,9 @@ ENV_VAR="RL_SWARM_IP"
 # ----------- IP配置逻辑 -----------
 echo "🔧 检查IP配置..."
 
+# 确保 zshrc 文件存在，避免 grep 报错
+[ -f "$ZSHRC" ] || touch "$ZSHRC"
+
 # 读取 ~/.zshrc 的 RL_SWARM_IP 环境变量
 if grep -q "^export $ENV_VAR=" "$ZSHRC"; then
   CURRENT_IP=$(grep "^export $ENV_VAR=" "$ZSHRC" | tail -n1 | awk -F'=' '{print $2}' | tr -d '[:space:]')
@@ -49,14 +52,15 @@ else
   # 替换 initial_peers 下的 IP
   if [[ "$OSTYPE" == "darwin"* ]]; then
     # macOS
-    sed -i '' "s/\/ip4\/[0-9]\{1,3\}\(\.[0-9]\{1,3\}\)\{3\}\//\/ip4\/${NEW_IP}\//g" "$CONFIG_FILE"
+    sed -i '' "s\/\/ip4\/[0-9]\{1,3\}\(\.[0-9]\{1,3\}\)\{3\}\//\/ip4\/${NEW_IP}\//g" "$CONFIG_FILE"
   else
     # Linux
-    sed -i "s/\/ip4\/[0-9]\{1,3\}\(\.[0-9]\{1,3\}\)\{3\}\//\/ip4\/${NEW_IP}\//g" "$CONFIG_FILE"
+    sed -i "s\/\/ip4\/[0-9]\{1,3\}\(\.[0-9]\{1,3\}\)\{3\}\//\/ip4\/${NEW_IP}\//g" "$CONFIG_FILE"
   fi
 
   echo "✅ 已将 initial_peers 的 IP 全部替换为：$NEW_IP"
   echo "原始文件已备份为：${CONFIG_FILE}.bak"
+fi
 
 # 切换到脚本所在目录（假设 go.sh 在项目根目录）
 cd "$(dirname "$0")"
