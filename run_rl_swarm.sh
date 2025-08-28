@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -euo pipefail
 
@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT=$PWD
 
 # GenRL Swarm version to use
-GENRL_TAG="v0.1.1"
+GENRL_TAG="0.1.6"
 
 export IDENTITY_PATH
 export GENSYN_RESET_CONFIG
@@ -15,7 +15,8 @@ export ORG_ID
 export HF_HUB_DOWNLOAD_TIMEOUT=120  # 2 minutes
 export SWARM_CONTRACT="0xFaD7C5e93f28257429569B854151A1B8DCD404c2"
 export PRG_CONTRACT="0x51D4db531ae706a6eC732458825465058fA23a35"
-export HUGGINGFACE_ACCESS_TOKEN="None"  # 直接设置为不上传
+export HUGGINGFACE_ACCESS_TOKEN="None"
+export PRG_GAME=true
 export MODEL_NAME="Gensyn/Qwen2.5-0.5B-Instruct"  # 直接设置模型
 
 # Path to an RSA private key. If this path does not exist, a new key pair will be created.
@@ -70,7 +71,7 @@ cleanup() {
     echo_green ">> Shutting down trainer..."
 
     # Remove modal credentials if they exist
-    #rm -r $ROOT_DIR/modal-login/temp-data/*.json 2> /dev/null || true
+    rm -r $ROOT_DIR/modal-login/temp-data/*.json 2> /dev/null || true
 
     # Kill all processes belonging to this script's process group
     kill -- -$$ || true
@@ -129,6 +130,7 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
             sudo apt update && sudo apt install -y yarn
         else
             echo "Yarn not found. Installing Yarn globally with npm (no profile edits)…"
+            # This lands in $NVM_DIR/versions/node/<ver>/bin which is already on PATH
             npm install -g --silent yarn
         fi
     fi
@@ -136,11 +138,15 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
     ENV_FILE="$ROOT"/modal-login/.env
     if [[ "$OSTYPE" == "darwin"* ]]; then
         # macOS version
-        sed -i '' "3s/.*/SMART_CONTRACT_ADDRESS=$SWARM_CONTRACT/" "$ENV_FILE"
+        sed -i '' "3s/.*/SWARM_CONTRACT_ADDRESS=$SWARM_CONTRACT/" "$ENV_FILE"
+        sed -i '' "4s/.*/PRG_CONTRACT_ADDRESS=$PRG_CONTRACT/" "$ENV_FILE"
+
     else
         # Linux version
-        sed -i "3s/.*/SMART_CONTRACT_ADDRESS=$SWARM_CONTRACT/" "$ENV_FILE"
+        sed -i "3s/.*/SWARM_CONTRACT_ADDRESS=$SWARM_CONTRACT/" "$ENV_FILE"
+        sed -i "4s/.*/PRG_CONTRACT_ADDRESS=$PRG_CONTRACT/" "$ENV_FILE"
     fi
+
 
     # Docker image already builds it, no need to again.
     if [ -z "$DOCKER" ]; then
@@ -155,15 +161,15 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
     sleep 5
 
     # Try to open the URL in the default browser
-    #if [ -z "$DOCKER" ]; then
-    #    if open http://localhost:3000 2> /dev/null; then
-    #        echo_green ">> Successfully opened http://localhost:3000 in your default browser."
-    #    else
-    #        echo ">> Failed to open http://localhost:3000. Please open it manually."
-    #    fi
-    #else
-    #    echo_green ">> Please open http://localhost:3000 in your host browser."
-    #fi
+    if [ -z "$DOCKER" ]; then
+        if open http://localhost:3000 2> /dev/null; then
+            echo_green ">> Successfully opened http://localhost:3000 in your default browser."
+        else
+            echo ">> Failed to open http://localhost:3000. Please open it manually."
+        fi
+    else
+        echo_green ">> Please open http://localhost:3000 in your host browser."
+    fi
 
     cd ..
 
@@ -191,59 +197,12 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
 fi
 
 echo_green ">> Getting requirements..."
-#pip install --upgrade pip > /dev/null
+pip install --upgrade pip
 
-# 优先本地安装
-if [ -f "./deps/gensyn_genrl-0.1.4-py3-none-any.whl" ]; then
-    pip install ./deps/gensyn_genrl-0.1.4-py3-none-any.whl > /dev/null 2>&1
-    echo_green ">> 已从本地安装 gensyn-genrl"
-else
-    pip install gensyn-genrl==0.1.4 > /dev/null 2>&1
-    echo_green ">> 已从线上安装 gensyn-genrl"
-fi
-
-if [ -f "./deps/reasoning_gym-0.1.21-py3-none-any.whl" ]; then
-    pip install ./deps/reasoning_gym-0.1.21-py3-none-any.whl > /dev/null 2>&1
-    echo_green ">> 已从本地安装 reasoning-gym"
-else
-    pip install reasoning-gym==0.1.21 > /dev/null 2>&1
-    echo_green ">> 已从线上安装 reasoning-gym"
-fi
-
-if [ -f "./deps/trl-0.19.1-py3-none-any.whl" ]; then
-    pip install ./deps/trl-0.19.1-py3-none-any.whl > /dev/null 2>&1
-    echo_green ">> 已从本地安装 trl"
-else
-    pip install trl==0.19.1 > /dev/null 2>&1
-    echo_green ">> 已从线上安装 trl"
-fi
-
-if [ -f "./deps/transformers-4.51.3-py3-none-any.whl" ]; then
-    pip install ./deps/transformers-4.51.3-py3-none-any.whl > /dev/null 2>&1
-    echo_green ">> 已从本地安装 transformers"
-else
-    pip install transformers==4.51.3 > /dev/null 2>&1
-    echo_green ">> 已从线上安装 transformers"
-fi
-
-
-# hivemind直接从线上安装
-pip install hivemind@git+https://github.com/gensyn-ai/hivemind@639c964a8019de63135a2594663b5bec8e5356dd > /dev/null 2>&1
-echo_green ">> 已从线上安装 hivemind"
-
-
-
-
-
-# 安装 web3，优先用本地whl文件
-if ls ./web3/web3-*.whl 1> /dev/null 2>&1; then
-  echo_green ">> 检测到本地 web3 whl 文件，使用离线安装..."
-  pip install --no-index --find-links=./web3 web3 > /dev/null 2>&1
-else
-  echo_green ">> 未检测到本地 web3 whl 文件，使用在线安装..."
-  pip install web3 > /dev/null 2>&1
-fi
-
+ echo_green ">> Installing GenRL..."
+pip install gensyn-genrl==${GENRL_TAG}
+pip install reasoning-gym>=0.1.20 # for reasoning gym env
+pip install hivemind@git+https://github.com/gensyn-ai/hivemind@639c964a8019de63135a2594663b5bec8e5356dd # We need the latest, 1.1.11 is broken
 
 
 if [ ! -d "$ROOT/configs" ]; then
@@ -271,7 +230,25 @@ if [ -n "$DOCKER" ]; then
 fi
 
 echo_green ">> Done!"
+
+
+# 移除交互式提问，改为非交互默认行为
+# 1) 默认不上传到 Hugging Face
+echo_green ">> Hugging Face push: disabled by default"
+export HUGGINGFACE_ACCESS_TOKEN="None"
+
+# 2) 模型选择：若未通过环境变量提供，则使用默认指定模型
+if [ -z "${MODEL_NAME:-}" ]; then
+    export MODEL_NAME="Gensyn/Qwen2.5-0.5B-Instruct"
+fi
 echo_green ">> Using model: $MODEL_NAME"
+
+# 3) PRG 游戏：默认参加
+export PRG_GAME=true
+echo_green ">> Playing PRG game: true"
+
+
+echo -en $RESET_TEXT
 echo_green ">> Good luck in the swarm!"
 echo_blue ">> And remember to star the repo on GitHub! --> https://github.com/gensyn-ai/rl-swarm"
 
