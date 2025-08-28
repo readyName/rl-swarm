@@ -17,6 +17,7 @@ export SWARM_CONTRACT="0xFaD7C5e93f28257429569B854151A1B8DCD404c2"
 export PRG_CONTRACT="0x51D4db531ae706a6eC732458825465058fA23a35"
 export HUGGINGFACE_ACCESS_TOKEN="None"
 export PRG_GAME=true
+export MODEL_NAME="Gensyn/Qwen2.5-0.5B-Instruct"  # 直接设置模型
 
 # Path to an RSA private key. If this path does not exist, a new key pair will be created.
 # Remove this file if you want a new PeerID.
@@ -70,7 +71,7 @@ cleanup() {
     echo_green ">> Shutting down trainer..."
 
     # Remove modal credentials if they exist
-    rm -r $ROOT_DIR/modal-login/temp-data/*.json 2> /dev/null || true
+    #rm -r $ROOT_DIR/modal-login/temp-data/*.json 2> /dev/null || true
 
     # Kill all processes belonging to this script's process group
     kill -- -$$ || true
@@ -160,15 +161,15 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
     sleep 5
 
     # Try to open the URL in the default browser
-    if [ -z "$DOCKER" ]; then
-        if open http://localhost:3000 2> /dev/null; then
-            echo_green ">> Successfully opened http://localhost:3000 in your default browser."
-        else
-            echo ">> Failed to open http://localhost:3000. Please open it manually."
-        fi
-    else
-        echo_green ">> Please open http://localhost:3000 in your host browser."
-    fi
+    #if [ -z "$DOCKER" ]; then
+    #    if open http://localhost:3000 2> /dev/null; then
+    #        echo_green ">> Successfully opened http://localhost:3000 in your default browser."
+    #    else
+    #        echo ">> Failed to open http://localhost:3000. Please open it manually."
+    #    fi
+    #else
+    #     echo_green ">> Please open http://localhost:3000 in your host browser."
+    # fi
 
     cd ..
 
@@ -231,37 +232,21 @@ fi
 echo_green ">> Done!"
 
 
-echo -en $GREEN_TEXT
-read -p ">> Would you like to push models you train in the RL swarm to the Hugging Face Hub? [y/N] " yn
-echo -en $RESET_TEXT
-yn=${yn:-N} # Default to "N" if the user presses Enter
-case $yn in
-    [Yy]*) read -p "Enter your Hugging Face access token: " HUGGINGFACE_ACCESS_TOKEN ;;
-    [Nn]*) HUGGINGFACE_ACCESS_TOKEN="None" ;;
-    *) echo ">>> No answer was given, so NO models will be pushed to Hugging Face Hub" && HUGGINGFACE_ACCESS_TOKEN="None" ;;
-esac
+# 移除交互式提问，改为非交互默认行为
+# 1) 默认不上传到 Hugging Face
+echo_green ">> Hugging Face push: disabled by default"
+export HUGGINGFACE_ACCESS_TOKEN="None"
 
-
-echo -en $GREEN_TEXT
-read -p ">> Enter the name of the model you want to use in huggingface repo/name format, or press [Enter] to use the default model. " MODEL_NAME
-echo -en $RESET_TEXT
-
-# Only export MODEL_NAME if user provided a non-empty value
-if [ -n "$MODEL_NAME" ]; then
-    export MODEL_NAME
-    echo_green ">> Using model: $MODEL_NAME"
-else
-    echo_green ">> Using default model from config"
+# 2) 模型选择：若未通过环境变量提供，则使用默认指定模型
+if [ -z "${MODEL_NAME:-}" ]; then
+    export MODEL_NAME="Gensyn/Qwen2.5-0.5B-Instruct"
 fi
+echo_green ">> Using model: $MODEL_NAME"
 
-echo -en $GREEN_TEXT
-read -p ">> Would you like your model to participate in the AI Prediction Market? [Y/n] " yn
-if [ "$yn" = "n" ] || [ "$yn" = "N" ]; then
-    PRG_GAME=false
-    echo_green ">> Playing PRG game: false"
-else
-    echo_green ">> Playing PRG game: true"
-fi
+# 3) PRG 游戏：默认参加
+export PRG_GAME=true
+echo_green ">> Playing PRG game: true"
+
 
 echo -en $RESET_TEXT
 echo_green ">> Good luck in the swarm!"
