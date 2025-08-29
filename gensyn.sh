@@ -51,11 +51,11 @@ else
 
   # 替换 initial_peers 下的 IP
   if [[ "$OSTYPE" == "darwin"* ]]; then
-    # macOS
-    sed -i '' "s\/\/ip4\/[0-9]\{1,3\}\(\.[0-9]\{1,3\}\)\{3\}\//\/ip4\/${NEW_IP}\//g" "$CONFIG_FILE"
+    # macOS: 匹配 /ip4/旧IP/tcp/端口/p2p/节点ID 格式，只替换IP部分
+    sed -i '' "s|/ip4/[0-9]\{1,3\}\(\.[0-9]\{1,3\}\)\{3\}|/ip4/${NEW_IP}|g" "$CONFIG_FILE"
   else
-    # Linux
-    sed -i "s\/\/ip4\/[0-9]\{1,3\}\(\.[0-9]\{1,3\}\)\{3\}\//\/ip4\/${NEW_IP}\//g" "$CONFIG_FILE"
+    # Linux: 匹配 /ip4/旧IP/tcp/端口/p2p/节点ID 格式，只替换IP部分
+    sed -i "s|/ip4/[0-9]\{1,3\}\(\.[0-9]\{1,3\}\)\{3\}|/ip4/${NEW_IP}|g" "$CONFIG_FILE"
   fi
 
   echo "✅ 已将 initial_peers 的 IP 全部替换为：$NEW_IP"
