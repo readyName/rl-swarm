@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# RL-Swarm version
+RL_SWARM_VERSION="0.6.1"
+
 export WANDB_MODE=disabled
 export WANDB_MODE=offline
 export WANDB_DISABLED=true
@@ -76,8 +79,9 @@ query_and_save_peerid_info() {
 }
 
 # ====== 🔁 主循环：启动和监控 RL Swarm ======
+log "🎯 RL-Swarm v${RL_SWARM_VERSION} 自动运行脚本已启动"
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-  log "🚀 第 $((RETRY_COUNT + 1)) 次尝试：启动 RL Swarm..."
+  log "🚀 第 $((RETRY_COUNT + 1)) 次尝试：启动 RL Swarm v${RL_SWARM_VERSION}..."
 
   # ✅ 设置 MPS 环境（适用于 Mac M1/M2）
   export PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.0
@@ -128,10 +132,10 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
   # 如果未找到 PY_PID，使用 RL_PID 进行监控
   if [ -z "$PY_PID" ]; then
     MONITOR_PID=$RL_PID
-    log "🔍 开始监控 RL_PID: $MONITOR_PID"
+    log "🔍 RL-Swarm v${RL_SWARM_VERSION} 开始监控 RL_PID: $MONITOR_PID"
   else
     MONITOR_PID=$PY_PID
-    log "🔍 开始监控 PY_PID: $MONITOR_PID"
+    log "🔍 RL-Swarm v${RL_SWARM_VERSION} 开始监控 PY_PID: $MONITOR_PID"
   fi
 
   while kill -0 "$MONITOR_PID" >/dev/null 2>&1; do
@@ -146,9 +150,9 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
       else
         FREE_GB=$(df -BG / | awk 'NR==2 {gsub(/G/,"",$4); print $4}')
       fi
-      log "🔍 检测到磁盘剩余空间 ${FREE_GB}GB"
+      log "🔍 RL-Swarm v${RL_SWARM_VERSION} 检测到磁盘剩余空间 ${FREE_GB}GB"
       if [ "$FREE_GB" -lt "$DISK_LIMIT_GB" ]; then
-        log "🚨 磁盘空间不足（${FREE_GB}GB < ${DISK_LIMIT_GB}GB），自动重启！"
+        log "🚨 RL-Swarm v${RL_SWARM_VERSION} 磁盘空间不足（${FREE_GB}GB < ${DISK_LIMIT_GB}GB），自动重启！"
         cleanup restart
         break
       fi
@@ -161,11 +165,11 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
         PEER_ID=$(grep "Peer ID" "$PEERID_LOG" | sed -n 's/.*Peer ID \[\(.*\)\].*/\1/p' | tail -n1)
         if [ -n "$PEER_ID" ]; then
           echo "$PEER_ID" > "$PEERID_FILE"
-          log "✅ 已检测并保存 Peer ID: $PEER_ID"
+          log "✅ RL-Swarm v${RL_SWARM_VERSION} 已检测并保存 Peer ID: $PEER_ID"
           query_and_save_peerid_info "$PEER_ID"
           FIRST_QUERY_DONE=1
         else
-          log "⏳ 未检测到 Peer ID，等待下次查询..."
+          log "⏳ RL-Swarm v${RL_SWARM_VERSION} 未检测到 Peer ID，等待下次查询..."
         fi
       else
         log "⏳ 未检测到 Peer ID 日志文件，等待下次查询..."
@@ -191,11 +195,11 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
           TIME_DIFF=$((CURRENT_TIME - LAST_MODIFY_TIME))
           
           if [ $TIME_DIFF -gt $LOG_TIMEOUT_SECONDS ]; then
-            log "🚨 日志文件超过 ${LOG_TIMEOUT_MINUTES} 分钟未更新（${TIME_DIFF}秒），自动重启节点！"
+            log "🚨 RL-Swarm v${RL_SWARM_VERSION} 日志文件超过 ${LOG_TIMEOUT_MINUTES} 分钟未更新（${TIME_DIFF}秒），自动重启节点！"
             cleanup restart
             break
           else
-            log "✅ 日志文件正常更新，最后更新时间：${TIME_DIFF}秒前"
+            log "✅ RL-Swarm v${RL_SWARM_VERSION} 日志文件正常更新，最后更新时间：${TIME_DIFF}秒前"
           fi
         else
           log "⚠️ 无法获取日志文件修改时间，跳过本次检测"
@@ -207,15 +211,15 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
   done
 
   # ✅ 清理并准备重启
-  log "🚨 监控进程 PID: $MONITOR_PID 已终止，进入重启流程"
+  log "🚨 RL-Swarm v${RL_SWARM_VERSION} 监控进程 PID: $MONITOR_PID 已终止，进入重启流程"
   cleanup restart
   RETRY_COUNT=$((RETRY_COUNT + 1))
 
   if [ $RETRY_COUNT -eq $WARNING_THRESHOLD ]; then
-    log "🚨 警告：RL Swarm 已重启 $WARNING_THRESHOLD 次，请检查系统状态"
+    log "🚨 警告：RL Swarm v${RL_SWARM_VERSION} 已重启 $WARNING_THRESHOLD 次，请检查系统状态"
   fi
 
   sleep 2
 done
 
-log "🛑 已达到最大重试次数 ($MAX_RETRIES)，程序退出"
+log "🛑 RL-Swarm v${RL_SWARM_VERSION} 已达到最大重试次数 ($MAX_RETRIES)，程序退出"
