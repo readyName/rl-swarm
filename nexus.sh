@@ -540,9 +540,23 @@ check_github_updates() {
   # 获取当前安装的版本
   local current_version=""
   if command -v nexus-cli &>/dev/null; then
+    # 尝试多种版本格式匹配
     current_version=$(nexus-cli -V 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+    if [[ -z "$current_version" ]]; then
+      # 如果没有找到 v 开头的版本，尝试匹配数字版本并添加 v 前缀
+      local version_num=$(nexus-cli -V 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+      if [[ -n "$version_num" ]]; then
+        current_version="v$version_num"
+      fi
+    fi
   elif command -v nexus-network &>/dev/null; then
     current_version=$(nexus-network --version 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+    if [[ -z "$current_version" ]]; then
+      local version_num=$(nexus-network --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+      if [[ -n "$version_num" ]]; then
+        current_version="v$version_num"
+      fi
+    fi
   fi
   
   if [[ -z "$current_version" ]]; then
