@@ -451,27 +451,27 @@ install_nexus_cli() {
   if [[ "$success" == false ]]; then
     log "${RED}Nexus CLI 安装/更新失败 $max_attempts 次，将尝试使用当前版本运行节点。${NC}"
   fi
-  if command -v nexus-network &>/dev/null; then
+  if command -v nexus-cli &>/dev/null; then
+    log "${GREEN}nexus-cli 版本：$(nexus-cli -V 2>/dev/null)${NC}"
+  elif command -v nexus-network &>/dev/null; then
     log "${GREEN}nexus-network 版本：$(nexus-network --version 2>/dev/null)${NC}"
-  elif command -v nexus-cli &>/dev/null; then
-    log "${GREEN}nexus-cli 版本：$(nexus-cli --version 2>/dev/null)${NC}"
   else
-    log "${RED}未找到 nexus-network 或 nexus-cli，无法运行节点。${NC}"
+    log "${RED}未找到 nexus-cli 或 nexus-network，无法运行节点。${NC}"
     exit 1
   fi
   
-  # 首次安装后生成仓库hash，避免首次运行时等待
-  if [[ ! -f "$HOME/.nexus/last_commit" ]]; then
-    log "${BLUE}首次安装，正在生成仓库hash记录...${NC}"
+  # 首次安装后记录版本信息
+  if [[ ! -f "$HOME/.nexus/last_version" ]]; then
+    log "${BLUE}首次安装，正在记录版本信息...${NC}"
     local repo_url="https://github.com/nexus-xyz/nexus-cli.git"
-    local current_commit=$(git ls-remote --heads "$repo_url" main 2>/dev/null | cut -f1)
+    local latest_tag=$(git ls-remote --tags "$repo_url" | grep -E 'refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$' | sed 's/.*refs\/tags\///' | sort -V | tail -1)
     
-    if [[ -n "$current_commit" ]]; then
+    if [[ -n "$latest_tag" ]]; then
       mkdir -p "$HOME/.nexus"
-      echo "$current_commit" > "$HOME/.nexus/last_commit"
-      log "${GREEN}已记录当前仓库版本: ${current_commit:0:8}${NC}"
+      echo "$latest_tag" > "$HOME/.nexus/last_version"
+      log "${GREEN}已记录当前版本: $latest_tag${NC}"
     else
-      log "${YELLOW}无法获取仓库信息，将在后续检测时创建${NC}"
+      log "${YELLOW}无法获取版本信息，将在后续检测时创建${NC}"
     fi
   fi
 }
@@ -524,35 +524,51 @@ get_node_id() {
   fi
 }
 
-# 检测 GitHub 仓库更新
+# 检测 GitHub 仓库版本更新
 check_github_updates() {
   local repo_url="https://github.com/nexus-xyz/nexus-cli.git"
-  log "${BLUE}检查 Nexus CLI 仓库更新...${NC}"
+  log "${BLUE}检查 Nexus CLI 版本更新...${NC}"
   
-  # 获取远程仓库最新提交
-  local current_commit=$(git ls-remote --heads "$repo_url" main 2>/dev/null | cut -f1)
+  # 获取远程仓库最新标签（版本）
+  local latest_tag=$(git ls-remote --tags "$repo_url" | grep -E 'refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$' | sed 's/.*refs\/tags\///' | sort -V | tail -1)
   
-  if [[ -z "$current_commit" ]]; then
-    log "${YELLOW}无法获取远程仓库信息，跳过更新检测${NC}"
+  if [[ -z "$latest_tag" ]]; then
+    log "${YELLOW}无法获取远程版本信息，跳过更新检测${NC}"
     return 1
   fi
   
-  if [[ -f "$HOME/.nexus/last_commit" ]]; then
-    local last_commit=$(cat "$HOME/.nexus/last_commit")
-    if [[ "$current_commit" != "$last_commit" ]]; then
-      log "${GREEN}检测到仓库更新！${NC}"
-      log "${BLUE}上次提交: ${last_commit:0:8}${NC}"
-      log "${BLUE}最新提交: ${current_commit:0:8}${NC}"
-      echo "$current_commit" > "$HOME/.nexus/last_commit"
+  # 获取当前安装的版本
+  local current_version=""
+  if command -v nexus-cli &>/dev/null; then
+    current_version=$(nexus-cli -V 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+  elif command -v nexus-network &>/dev/null; then
+    current_version=$(nexus-network --version 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+  fi
+  
+  if [[ -z "$current_version" ]]; then
+    log "${YELLOW}无法获取当前版本信息，将进行首次安装${NC}"
+    echo "$latest_tag" > "$HOME/.nexus/last_version"
+    return 0  # 首次安装
+  fi
+  
+  # 比较版本号
+  if [[ "$latest_tag" != "$current_version" ]]; then
+    log "${GREEN}检测到新版本！${NC}"
+    log "${BLUE}当前版本: $current_version${NC}"
+    log "${BLUE}最新版本: $latest_tag${NC}"
+    
+    # 使用 sort -V 进行版本号比较
+    if echo -e "$current_version\n$latest_tag" | sort -V | tail -1 | grep -q "$latest_tag"; then
+      log "${GREEN}版本升级检测通过，准备更新...${NC}"
+      echo "$latest_tag" > "$HOME/.nexus/last_version"
       return 0  # 有更新
     else
-      log "${GREEN}仓库无更新，当前版本: ${current_commit:0:8}${NC}"
-      return 1  # 无更新
+      log "${YELLOW}检测到版本变化，但可能是降级，跳过更新${NC}"
+      return 1  # 跳过更新
     fi
   else
-    log "${BLUE}首次运行，记录当前提交: ${current_commit:0:8}${NC}"
-    echo "$current_commit" > "$HOME/.nexus/last_commit"
-    return 0  # 首次运行
+    log "${GREEN}当前已是最新版本: $current_version${NC}"
+    return 1  # 无更新
   fi
 }
 
@@ -673,25 +689,25 @@ main() {
     log "${YELLOW}节点启动失败，将在下次更新检测时重试${NC}"
   fi
   
-  log "${BLUE}开始监控 GitHub 仓库更新...${NC}"
+  log "${BLUE}开始监控 Nexus CLI 版本更新...${NC}"
   log "${BLUE}检测频率：每30分钟检查一次${NC}"
-  log "${BLUE}重启条件：仅在检测到仓库更新时重启${NC}"
+  log "${BLUE}更新条件：仅在检测到新版本时更新和重启${NC}"
   
   while true; do
     # 每30分钟检查一次更新
     sleep 1800
     
     if check_github_updates; then
-      log "${BLUE}检测到更新，准备重启节点...${NC}"
+      log "${BLUE}检测到新版本，准备更新并重启节点...${NC}"
       cleanup_restart
       install_nexus_cli
       if start_node; then
-        log "${GREEN}节点已成功重启！${NC}"
+        log "${GREEN}节点已成功更新并重启！${NC}"
       else
-        log "${YELLOW}节点重启失败，将在下次更新检测时重试${NC}"
+        log "${YELLOW}节点更新重启失败，将在下次版本检测时重试${NC}"
       fi
     else
-      log "${BLUE}无更新，节点继续运行...${NC}"
+      log "${BLUE}当前已是最新版本，节点继续运行...${NC}"
     fi
   done
 }
