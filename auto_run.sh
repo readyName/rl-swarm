@@ -65,6 +65,90 @@ cleanup() {
 # 绑定 Ctrl+C 信号到 cleanup 函数（退出模式）
 trap 'cleanup exit' SIGINT
 
+# ====== 检查并更新代码函数 ======
+check_and_update_code() {
+  log "🔄 检查代码更新..."
+  
+  # 获取当前目录
+  local current_dir=$(pwd)
+  log "📁 当前工作目录: $current_dir"
+  
+  # 检查是否在 git 仓库中，如果不是则切换到 ~/rl-swarm 目录
+  if ! git rev-parse --git-dir > /dev/null 2>&1; then
+    log "⚠️ 当前目录不是 git 仓库，切换到 ~/rl-swarm 目录"
+    if [ -d "$HOME/rl-swarm" ]; then
+      cd "$HOME/rl-swarm" 2>/dev/null || {
+        log "⚠️ 无法切换到 ~/rl-swarm 目录，跳过代码更新检查"
+        return 0
+      }
+      log "✅ 已切换到 ~/rl-swarm 目录: $(pwd)"
+    else
+      log "⚠️ ~/rl-swarm 目录不存在，跳过代码更新检查"
+      return 0
+    fi
+  fi
+  
+  # 获取远程更新（设置超时和错误处理）
+  log "🌐 获取远程仓库信息..."
+  if ! timeout 30 git fetch origin 2>/dev/null; then
+    log "⚠️ 网络超时或无法连接远程仓库，跳过代码更新检查"
+    return 0
+  fi
+  
+  # 检查是否有更新
+  local current_branch=$(git branch --show-current 2>/dev/null)
+  if [ -z "$current_branch" ]; then
+    log "⚠️ 无法获取当前分支信息，跳过代码更新检查"
+    return 0
+  fi
+  
+  local remote_branch="origin/$current_branch"
+  
+  # 比较本地和远程分支
+  local local_commit=$(git rev-parse HEAD 2>/dev/null)
+  local remote_commit=$(git rev-parse $remote_branch 2>/dev/null)
+  
+  if [ -z "$local_commit" ] || [ -z "$remote_commit" ]; then
+    log "⚠️ 无法获取提交信息，跳过代码更新检查"
+    return 0
+  fi
+  
+  if [ "$local_commit" = "$remote_commit" ]; then
+    log "✅ 代码已是最新版本，无需更新"
+    return 0
+  fi
+  
+  # 有更新，执行 git pull
+  log "🔄 检测到代码更新，正在拉取最新代码..."
+  if timeout 60 git pull origin "$current_branch" 2>/dev/null; then
+    log "✅ 代码更新成功！"
+    log "📊 更新详情："
+    log "   本地提交: ${local_commit:0:8}"
+    log "   远程提交: ${remote_commit:0:8}"
+    return 0
+  else
+    log "⚠️ git pull 失败，尝试强制更新..."
+    log "🔄 执行 git fetch origin --prune..."
+    if timeout 30 git fetch origin --prune 2>/dev/null; then
+      log "✅ git fetch 成功，正在强制重置到远程分支..."
+      if git reset --hard "origin/$current_branch" 2>/dev/null; then
+        log "✅ 强制更新成功！"
+        log "📊 强制更新详情："
+        log "   本地提交: ${local_commit:0:8}"
+        log "   远程提交: ${remote_commit:0:8}"
+        log "   当前分支: $current_branch"
+        return 0
+      else
+        log "⚠️ git reset --hard 失败，继续使用当前版本运行"
+        return 0
+      fi
+    else
+      log "⚠️ git fetch 失败，可能是网络问题，继续使用当前版本运行"
+      return 0
+    fi
+  fi
+}
+
 # ====== Peer ID 查询并写入桌面函数 ======
 query_and_save_peerid_info() {
   local peer_id="$1"
@@ -80,6 +164,10 @@ query_and_save_peerid_info() {
 
 # ====== 🔁 主循环：启动和监控 RL Swarm ======
 log "🎯 RL-Swarm v${RL_SWARM_VERSION} 自动运行脚本已启动"
+
+# 首次启动时检查代码更新
+check_and_update_code
+
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
   log "🚀 第 $((RETRY_COUNT + 1)) 次尝试：启动 RL Swarm v${RL_SWARM_VERSION}..."
 
@@ -212,6 +300,10 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
 
   # ✅ 清理并准备重启
   log "🚨 RL-Swarm v${RL_SWARM_VERSION} 监控进程 PID: $MONITOR_PID 已终止，进入重启流程"
+  
+  # 重启前检查代码更新
+  check_and_update_code
+  
   cleanup restart
   RETRY_COUNT=$((RETRY_COUNT + 1))
 
