@@ -90,8 +90,9 @@ check_and_update_code() {
   
   # 获取远程更新（设置超时和错误处理）
   log "🌐 获取远程仓库信息..."
-  if ! timeout 30 git fetch origin 2>/dev/null; then
-    log "⚠️ 网络超时或无法连接远程仓库，跳过代码更新检查"
+  # 使用简单的超时机制
+  if ! git fetch origin 2>/dev/null; then
+    log "⚠️ 无法连接远程仓库，跳过代码更新检查"
     return 0
   fi
   
@@ -120,7 +121,7 @@ check_and_update_code() {
   
   # 有更新，执行 git pull
   log "🔄 检测到代码更新，正在拉取最新代码..."
-  if timeout 60 git pull origin "$current_branch" 2>/dev/null; then
+  if git pull origin "$current_branch" 2>/dev/null; then
     log "✅ 代码更新成功！"
     log "📊 更新详情："
     log "   本地提交: ${local_commit:0:8}"
@@ -129,7 +130,7 @@ check_and_update_code() {
   else
     log "⚠️ git pull 失败，尝试强制更新..."
     log "🔄 执行 git fetch origin --prune..."
-    if timeout 30 git fetch origin --prune 2>/dev/null; then
+    if git fetch origin --prune 2>/dev/null; then
       log "✅ git fetch 成功，正在强制重置到远程分支..."
       if git reset --hard "origin/$current_branch" 2>/dev/null; then
         log "✅ 强制更新成功！"
