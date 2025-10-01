@@ -119,7 +119,7 @@ arrange_window "gensyn" $((x1+30)) $y1 $upper_item_width $upper_height
 # 5. 启动dria（上层右侧，向右偏移半个身位，宽度缩小1/2，高度不变）
 osascript -e 'tell app "Terminal" to do script "cd ~/rl-swarm && dkn-compute-launcher start"'
 sleep 1
-arrange_window "dria" $((x1+upper_item_width+spacing+upper_item_width/2)) $y1 $wai_width $wai_height
+arrange_window "dkn-compute-launcher" $((x1+upper_item_width+spacing+upper_item_width/2)) $y1 $wai_width $wai_height
 
 # 6. 启动nexus（下层左侧，高度减小30px，向下移动5px）
 osascript -e 'tell app "Terminal" to do script "cd ~/rl-swarm && ./nexus.sh"'
