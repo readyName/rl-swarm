@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # RL-Swarm version
-RL_SWARM_VERSION="0.6.2"
+RL_SWARM_VERSION="0.6.3"
 
 export WANDB_MODE=disabled
 export WANDB_MODE=offline
