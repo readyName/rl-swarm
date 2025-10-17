@@ -179,32 +179,18 @@ check_and_update_code() {
 # 首次启动时检查代码更新
 check_and_update_code
 
+# 每次启动都重新创建虚拟环境
+log "🔄 每次启动都重新创建虚拟环境..."
+recreate_virtual_environment
+
 # 激活虚拟环境并执行 auto_run.sh
+# 由于每次启动都重新创建了虚拟环境，直接激活即可
 if [ -d ".venv" ]; then
-  echo "🔗 正在激活虚拟环境 .venv..."
+  log "🔗 正在激活虚拟环境 .venv..."
   source .venv/bin/activate
 else
-  echo "⚠️ 未找到 .venv 虚拟环境，正在自动创建..."
-  if command -v python3.10 >/dev/null 2>&1; then
-    PYTHON=python3.10
-  elif command -v python3 >/dev/null 2>&1; then
-    PYTHON=python3
-  else
-    echo "❌ 未找到 Python 3.10 或 python3，请先安装。"
-    exit 1
-  fi
-  $PYTHON -m venv .venv
-  if [ -d ".venv" ]; then
-    echo "✅ 虚拟环境创建成功，正在激活..."
-    source .venv/bin/activate
-    # 检查并安装web3
-    if ! python -c "import web3" 2>/dev/null; then
-      echo "⚙️ 正在为虚拟环境安装 web3..."
-      pip install web3
-    fi
-  else
-    echo "❌ 虚拟环境创建失败，跳过激活。"
-  fi
+  log "❌ 虚拟环境不存在，无法激活"
+  exit 1
 fi
 
 # 执行 auto_run.sh
