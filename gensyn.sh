@@ -1,46 +1,66 @@
 #!/bin/bash
 
+CONFIG_FILE="rgym_exp/config/rg-swarm.yaml"
+
+ZSHRC=~/.zshrc
 ENV_VAR="RL_SWARM_IP"
 
-# 根据操作系统选择环境变量配置文件
-if [[ "$OSTYPE" == "darwin"* ]]; then
-  # macOS
-  ENV_FILE=~/.zshrc
-  SED_OPTION="''"
-elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-  # Ubuntu/Linux
-  if [ -f ~/.bashrc ]; then
-    ENV_FILE=~/.bashrc
-  elif [ -f ~/.zshrc ]; then
-    ENV_FILE=~/.zshrc
-  else
-    ENV_FILE=~/.profile
-  fi
-  SED_OPTION=""
+# ----------- IP配置逻辑 -----------
+echo "🔧 检查IP配置..."
+
+# 确保 zshrc 文件存在，避免 grep 报错
+[ -f "$ZSHRC" ] || touch "$ZSHRC"
+
+# 读取 ~/.zshrc 的 RL_SWARM_IP 环境变量
+if grep -q "^export $ENV_VAR=" "$ZSHRC"; then
+  CURRENT_IP=$(grep "^export $ENV_VAR=" "$ZSHRC" | tail -n1 | awk -F'=' '{print $2}' | tr -d '[:space:]')
 else
-  # 其他系统默认使用 bashrc
-  ENV_FILE=~/.bashrc
-  SED_OPTION=""
+  CURRENT_IP=""
 fi
 
-echo "🔍 检测环境变量配置文件: $ENV_FILE"
+# 交互提示（10秒超时）
+if [ -n "$CURRENT_IP" ]; then
+  echo -n "检测到上次使用的 IP: $CURRENT_IP，是否继续使用？(Y/n, 10秒后默认Y): "
+  read -t 10 USE_LAST
+  if [[ "$USE_LAST" == "" || "$USE_LAST" =~ ^[Yy]$ ]]; then
+    NEW_IP="$CURRENT_IP"
+  else
+    read -p "请输入新的 initial_peers IP（直接回车跳过IP配置）: " NEW_IP
+  fi
+else
+  read -p "未检测到历史 IP，请输入 initial_peers IP（直接回车跳过IP配置）: " NEW_IP
+fi
 
-# 检测并删除 RL_SWARM_IP 环境变量
-if grep -q "^export $ENV_VAR=" "$ENV_FILE"; then
-  echo "⚠️ 检测到 $ENV_VAR 环境变量，正在删除..."
+# 每次都将环境变量中的IP写入 ~/.zshrc，保证同步
+if [ -n "$CURRENT_IP" ]; then
+  sed -i '' "/^export $ENV_VAR=/d" "$ZSHRC"
+  echo "export $ENV_VAR=$CURRENT_IP" >> "$ZSHRC"
+  echo "✅ 已同步环境变量IP到配置文件：$CURRENT_IP"
+fi
+
+# 继续后续逻辑
+if [[ -z "$NEW_IP" ]]; then
+  echo "ℹ️ 未输入IP，跳过所有IP相关配置，继续执行。"
+else
+  # 只要有NEW_IP都写入一次配置文件
+  sed -i '' "/^export $ENV_VAR=/d" "$ZSHRC"
+  echo "export $ENV_VAR=$NEW_IP" >> "$ZSHRC"
+  echo "✅ 已写入IP到配置文件：$NEW_IP"
+  # 备份原文件
+  cp "$CONFIG_FILE" "${CONFIG_FILE}.bak"
+
+  # 替换 initial_peers 下的 IP
   if [[ "$OSTYPE" == "darwin"* ]]; then
-    # macOS 使用 sed -i ''
-    sed -i '' "/^export $ENV_VAR=/d" "$ENV_FILE"
+    # macOS: 匹配 /ip4/旧IP/tcp/端口/p2p/节点ID 格式，只替换IP部分
+    sed -i '' "s|/ip4/[0-9]\{1,3\}\(\.[0-9]\{1,3\}\)\{3\}|/ip4/${NEW_IP}|g" "$CONFIG_FILE"
   else
-    # Linux 使用 sed -i
-    sed -i "/^export $ENV_VAR=/d" "$ENV_FILE"
+    # Linux: 匹配 /ip4/旧IP/tcp/端口/p2p/节点ID 格式，只替换IP部分
+    sed -i "s|/ip4/[0-9]\{1,3\}\(\.[0-9]\{1,3\}\)\{3\}|/ip4/${NEW_IP}|g" "$CONFIG_FILE"
   fi
-  echo "✅ 已删除 $ENV_VAR 环境变量"
-else
-  echo "ℹ️ 未检测到 $ENV_VAR 环境变量，无需删除"
+
+  echo "✅ 已将 initial_peers 的 IP 全部替换为：$NEW_IP"
+  echo "原始文件已备份为：${CONFIG_FILE}.bak"
 fi
-
-
 
 # 切换到脚本所在目录（假设 go.sh 在项目根目录）
 cd "$(dirname "$0")"
@@ -181,32 +201,18 @@ check_and_update_code() {
 # 首次启动时检查代码更新
 check_and_update_code
 
+# 每次启动都重新创建虚拟环境
+log "🔄 每次启动都重新创建虚拟环境..."
+recreate_virtual_environment
+
 # 激活虚拟环境并执行 auto_run.sh
+# 由于每次启动都重新创建了虚拟环境，直接激活即可
 if [ -d ".venv" ]; then
-  echo "🔗 正在激活虚拟环境 .venv..."
+  log "🔗 正在激活虚拟环境 .venv..."
   source .venv/bin/activate
 else
-  echo "⚠️ 未找到 .venv 虚拟环境，正在自动创建..."
-  if command -v python3.10 >/dev/null 2>&1; then
-    PYTHON=python3.10
-  elif command -v python3 >/dev/null 2>&1; then
-    PYTHON=python3
-  else
-    echo "❌ 未找到 Python 3.10 或 python3，请先安装。"
-    exit 1
-  fi
-  $PYTHON -m venv .venv
-  if [ -d ".venv" ]; then
-    echo "✅ 虚拟环境创建成功，正在激活..."
-    source .venv/bin/activate
-    # 检查并安装web3
-    if ! python -c "import web3" 2>/dev/null; then
-      echo "⚙️ 正在为虚拟环境安装 web3..."
-      pip install web3
-    fi
-  else
-    echo "❌ 虚拟环境创建失败，跳过激活。"
-  fi
+  log "❌ 虚拟环境不存在，无法激活"
+  exit 1
 fi
 
 # 执行 auto_run.sh
