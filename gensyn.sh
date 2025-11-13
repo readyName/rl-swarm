@@ -200,19 +200,22 @@ check_and_update_code() {
     log "🔄 执行 git fetch origin --prune..."
     if git fetch origin --prune 2>/dev/null; then
       log "✅ git fetch 成功，正在强制重置到远程分支..."
-      if git reset --hard "origin/$current_branch" 2>/dev/null; then
+      # 执行 git reset --hard，捕获输出和退出码
+      if git reset --hard "origin/$current_branch" 2>&1; then
         log "✅ 强制更新成功！"
         log "📊 强制更新详情："
         log "   本地提交: ${local_commit:0:8}"
         log "   远程提交: ${remote_commit:0:8}"
         log "   当前分支: $current_branch"
         # 代码更新成功，重建虚拟环境
-        log "🔄 准备重建虚拟环境..."
+        log "🔄 检测到代码更新，准备重建虚拟环境..."
+        log "🔍 调试：准备调用 rebuild_venv 函数..."
         if rebuild_venv; then
           log "✅ 虚拟环境重建流程完成"
         else
           log "⚠️ 虚拟环境重建失败，但继续执行"
         fi
+        log "🔍 调试：rebuild_venv 函数调用完成"
         return 0
       else
         log "⚠️ git reset --hard 失败，继续使用当前版本运行"
