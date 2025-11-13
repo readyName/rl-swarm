@@ -68,20 +68,29 @@ trap 'cleanup exit' SIGINT
 
 # ====== 重建虚拟环境函数 ======
 rebuild_venv() {
-  log "🔧 开始重建虚拟环境..."
+  local current_dir=$(pwd)
+  log "🔧 开始重建虚拟环境... (当前目录: $current_dir)"
   
   # 如果虚拟环境存在，先删除
   if [ -d ".venv" ]; then
     log "🗑️ 删除现有虚拟环境 .venv..."
-    rm -rf .venv
-    log "✅ 虚拟环境已删除"
+    if rm -rf .venv; then
+      log "✅ 虚拟环境已删除"
+    else
+      log "⚠️ 删除虚拟环境失败，但继续尝试重建"
+    fi
+  else
+    log "ℹ️ 虚拟环境不存在，直接创建新环境"
   fi
   
   # 确定 Python 命令
+  local PYTHON_CMD=""
   if command -v python3.10 >/dev/null 2>&1; then
-    PYTHON=python3.10
+    PYTHON_CMD=python3.10
+    log "✅ 使用 Python 3.10"
   elif command -v python3 >/dev/null 2>&1; then
-    PYTHON=python3
+    PYTHON_CMD=python3
+    log "✅ 使用 Python 3"
   else
     log "❌ 未找到 Python 3.10 或 python3，无法重建虚拟环境"
     return 1
@@ -89,24 +98,32 @@ rebuild_venv() {
   
   # 创建新的虚拟环境
   log "📦 正在创建新的虚拟环境..."
-  if $PYTHON -m venv .venv; then
+  if $PYTHON_CMD -m venv .venv 2>&1; then
     log "✅ 虚拟环境创建成功"
     
     # 激活虚拟环境并安装基础依赖
     log "📥 激活虚拟环境并安装基础依赖..."
-    source .venv/bin/activate
-    
-    # 升级 pip
-    pip install --upgrade pip >/dev/null 2>&1
-    
-    # 检查并安装 web3（gensyn.sh 中需要的依赖）
-    if ! python -c "import web3" 2>/dev/null; then
-      log "⚙️ 正在安装 web3..."
-      pip install web3 >/dev/null 2>&1
+    if [ -f ".venv/bin/activate" ]; then
+      source .venv/bin/activate
+      
+      # 升级 pip
+      log "⬆️ 升级 pip..."
+      pip install --upgrade pip >/dev/null 2>&1 || log "⚠️ pip 升级失败，但继续执行"
+      
+      # 检查并安装 web3（gensyn.sh 中需要的依赖）
+      if ! python -c "import web3" 2>/dev/null; then
+        log "⚙️ 正在安装 web3..."
+        pip install web3 >/dev/null 2>&1 || log "⚠️ web3 安装失败，但继续执行"
+      else
+        log "✅ web3 已存在，跳过安装"
+      fi
+      
+      log "✅ 虚拟环境重建完成"
+      return 0
+    else
+      log "❌ 虚拟环境激活脚本不存在"
+      return 1
     fi
-    
-    log "✅ 虚拟环境重建完成"
-    return 0
   else
     log "❌ 虚拟环境创建失败"
     return 1
@@ -175,7 +192,12 @@ check_and_update_code() {
     log "   本地提交: ${local_commit:0:8}"
     log "   远程提交: ${remote_commit:0:8}"
     # 代码更新成功，重建虚拟环境
-    rebuild_venv
+    log "🔄 准备重建虚拟环境..."
+    if rebuild_venv; then
+      log "✅ 虚拟环境重建流程完成"
+    else
+      log "⚠️ 虚拟环境重建失败，但继续执行"
+    fi
     return 0
   else
     log "⚠️ git pull 失败，尝试强制更新..."
@@ -189,7 +211,12 @@ check_and_update_code() {
         log "   远程提交: ${remote_commit:0:8}"
         log "   当前分支: $current_branch"
         # 代码更新成功，重建虚拟环境
-        rebuild_venv
+        log "🔄 准备重建虚拟环境..."
+        if rebuild_venv; then
+          log "✅ 虚拟环境重建流程完成"
+        else
+          log "⚠️ 虚拟环境重建失败，但继续执行"
+        fi
         return 0
       else
         log "⚠️ git reset --hard 失败，继续使用当前版本运行"
