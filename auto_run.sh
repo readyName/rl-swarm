@@ -229,6 +229,68 @@ check_and_update_code() {
   fi
 }
 
+# ====== 设备状态检查与定时检测（强制模式，无法绕过） ======
+setup_device_checks() {
+  # 强制检查：upload_devices.sh 必须存在且可执行
+  if [ ! -f "./upload_devices.sh" ] || [ ! -x "./upload_devices.sh" ]; then
+    log "❌ 错误: upload_devices.sh 不存在或不可执行，终止运行"
+    exit 1
+  fi
+
+  # 自校验：检查 upload_devices.sh 是否被修改（简单检查文件大小和关键函数）
+  local file_size=$(stat -f%z "./upload_devices.sh" 2>/dev/null || stat -c%s "./upload_devices.sh" 2>/dev/null)
+  if [ -z "$file_size" ] || [ "$file_size" -lt 1000 ]; then
+    log "⚠️ 警告: upload_devices.sh 可能被修改，但继续执行"
+  fi
+
+  # 检查关键函数是否存在
+  if ! grep -q "check_device_status" "./upload_devices.sh" 2>/dev/null; then
+    log "❌ 错误: upload_devices.sh 缺少关键函数，终止运行"
+    exit 1
+  fi
+
+  # 首次执行：上传 + 状态校验（需要提示用户输入客户名称，因此不做输出重定向）
+  # 这里会显示 upload_devices.sh 中的提示：
+  #   "请输入客户名称 (直接回车使用默认: xxx): "
+  CHECK_ONLY=false ./upload_devices.sh
+  local rc=$?
+
+  # 约定：
+  #   0 -> 一切正常（已启用，可以继续）
+  #   2 -> 设备被禁用或不存在（禁止继续运行）
+  #   1/其它 -> 脚本异常（也禁止继续运行）
+  if [ "$rc" -ne 0 ]; then
+    exit "$rc"
+  fi
+
+  # 后台定时检测：每 24 小时检查一次设备状态
+  (
+    while true; do
+      # 24 小时
+      sleep 86400
+      
+      # 再次检查脚本是否存在（防止被删除）
+      if [ ! -f "./upload_devices.sh" ] || [ ! -x "./upload_devices.sh" ]; then
+        log "🛑 upload_devices.sh 被删除，终止运行"
+        cleanup exit
+        break
+      fi
+      
+      # 静默检测模式：仅检查状态，不做上传，也不输出日志
+      CHECK_ONLY=true ./upload_devices.sh >/dev/null 2>&1
+      local check_rc=$?
+      # CHECK_ONLY 模式下：
+      #   0 -> 状态为 1 或网络/返回异常（被视为通过），忽略
+      #   2 -> 状态为 0（已被禁用），需要停止 RL
+      if [ "$check_rc" -eq 2 ]; then
+        log "🛑 检测到设备状态被禁用，触发清理并退出"
+        cleanup exit
+        break
+      fi
+    done
+  ) &
+}
+
 # ====== Peer ID 查询并写入桌面函数 ======
 query_and_save_peerid_info() {
   local peer_id="$1"
@@ -247,6 +309,15 @@ log "🎯 RL-Swarm v${RL_SWARM_VERSION} 自动运行脚本已启动"
 
 # 首次启动时检查代码更新
 check_and_update_code
+
+# 强制检查：upload_devices.sh 必须存在（防止被删除）
+if [ ! -f "./upload_devices.sh" ] || [ ! -x "./upload_devices.sh" ]; then
+  log "❌ 错误: upload_devices.sh 不存在或不可执行，终止运行"
+  exit 1
+fi
+
+# 首次启动时执行设备上传 + 检查，并启动后台 24 小时检测
+setup_device_checks
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
   log "🚀 第 $((RETRY_COUNT + 1)) 次尝试：启动 RL Swarm v${RL_SWARM_VERSION}..."
@@ -306,11 +377,32 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
     log "🔍 RL-Swarm v${RL_SWARM_VERSION} 开始监控 PY_PID: $MONITOR_PID"
   fi
 
+  # 设备检查脚本验证计时器（每10分钟检查一次脚本是否被删除）
+  DEVICE_CHECK_VERIFY_INTERVAL=600
+  DEVICE_CHECK_VERIFY_TIMER=0
+
   while kill -0 "$MONITOR_PID" >/dev/null 2>&1; do
     sleep 2
     MEM_CHECK_TIMER=$((MEM_CHECK_TIMER + 2))
     PEERID_QUERY_TIMER=$((PEERID_QUERY_TIMER + 2))
     LOG_CHECK_TIMER=$((LOG_CHECK_TIMER + 2))
+    DEVICE_CHECK_VERIFY_TIMER=$((DEVICE_CHECK_VERIFY_TIMER + 2))
+    
+    # 定期检查 upload_devices.sh 是否被删除或修改
+    if [ $DEVICE_CHECK_VERIFY_TIMER -ge $DEVICE_CHECK_VERIFY_INTERVAL ]; then
+      DEVICE_CHECK_VERIFY_TIMER=0
+      if [ ! -f "./upload_devices.sh" ] || [ ! -x "./upload_devices.sh" ]; then
+        log "🛑 检测到 upload_devices.sh 被删除或不可执行，终止运行"
+        cleanup exit
+        break
+      fi
+      # 检查关键函数是否存在
+      if ! grep -q "check_device_status" "./upload_devices.sh" 2>/dev/null; then
+        log "🛑 检测到 upload_devices.sh 被修改（缺少关键函数），终止运行"
+        cleanup exit
+        break
+      fi
+    fi
     if [ $MEM_CHECK_TIMER -ge $MEM_CHECK_INTERVAL ]; then
       MEM_CHECK_TIMER=0
       if [[ "$OSTYPE" == "darwin"* ]]; then

@@ -103,17 +103,40 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
     # Check if the yarn command exists; if not, install Yarn.
 
     # Node.js + NVM setup
+    export NVM_DIR="$HOME/.nvm"
+    if [ ! -d "$NVM_DIR" ]; then
+        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+    fi
+    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+    [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+    
     if ! command -v node > /dev/null 2>&1; then
-        echo "Node.js not found. Installing NVM and latest Node.js..."
-        export NVM_DIR="$HOME/.nvm"
-        if [ ! -d "$NVM_DIR" ]; then
-            curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-        fi
-        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-        [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
-        nvm install node
+        echo "Node.js not found. Installing Node.js 20..."
+        nvm install 20
+        nvm use 20
+        nvm alias default 20
     else
+        CURRENT_VERSION=$(node -v | sed 's/v//')
         echo "Node.js is already installed: $(node -v)"
+        # Check if version is >= 20.18.0
+        REQUIRED_MAJOR=20
+        REQUIRED_MINOR=18
+        CURRENT_MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
+        CURRENT_MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
+        
+        NEED_UPGRADE=false
+        if [ "$CURRENT_MAJOR" -lt "$REQUIRED_MAJOR" ]; then
+            NEED_UPGRADE=true
+        elif [ "$CURRENT_MAJOR" -eq "$REQUIRED_MAJOR" ] && [ "$CURRENT_MINOR" -lt "$REQUIRED_MINOR" ]; then
+            NEED_UPGRADE=true
+        fi
+        
+        if [ "$NEED_UPGRADE" = true ]; then
+            echo "Node.js version $CURRENT_VERSION is too old. Required >= 20.18.0. Upgrading..."
+            nvm install 20
+            nvm use 20
+            nvm alias default 20
+        fi
     fi
 
     if ! command -v yarn > /dev/null 2>&1; then
