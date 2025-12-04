@@ -9,7 +9,7 @@ export IDENTITY_PATH
 export GENSYN_RESET_CONFIG
 export CONNECT_TO_TESTNET=true
 export ORG_ID
-export HF_HUB_DOWNLOAD_TIMEOUT=120  # 2 minutes
+export HF_HUB_DOWNLOAD_TIMEOUT=86400  # 24 hours (effectively no timeout, download until complete)
 export SWARM_CONTRACT="0x7745a8FE4b8D2D2c3BB103F8dCae822746F35Da0"
 export HUGGINGFACE_ACCESS_TOKEN="None"
 export MODEL_NAME="Qwen/Qwen2.5-Coder-0.5B-Instruct"  # 直接设置模型

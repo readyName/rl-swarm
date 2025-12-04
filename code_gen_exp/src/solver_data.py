@@ -2,6 +2,7 @@ import re
 from typing import Any, Dict, List, Tuple
 import random
 from copy import deepcopy
+import logging
 
 from datasets import Dataset, load_dataset, concatenate_datasets
 
@@ -11,6 +12,10 @@ from genrl.misc_utils.utils import generate_md5_hash_id
 from genrl.state import GameState, WorldState
 from genrl.communication.hivemind.hivemind_backend import HivemindBackend
 from code_gen_exp.src.utils.solver_data_mapper import MBPPMapper, CodeContestsMapper
+
+# Suppress Hugging Face download warnings, keep only progress bar
+logging.getLogger("huggingface_hub.utils._http").setLevel(logging.ERROR)
+logging.getLogger("huggingface_hub.file_download").setLevel(logging.ERROR)
 
 
 SYSTEM_PROMPTS = {

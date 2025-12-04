@@ -16,6 +16,9 @@ from code_gen_exp.src.utils.omega_gpu_resolver import (
 import logging
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("hivemind").setLevel(logging.CRITICAL)
+# Suppress Hugging Face download warnings, keep only progress bar
+logging.getLogger("huggingface_hub.utils._http").setLevel(logging.ERROR)
+logging.getLogger("huggingface_hub.file_download").setLevel(logging.ERROR)
 
 @hydra.main(version_base=None)
 def main(cfg: DictConfig):
