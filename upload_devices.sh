@@ -61,8 +61,25 @@ else
 fi
 
 # Local state file (to ensure upload only executes once)
+# Store in user home directory for system-wide access (cross-platform)
+if [ -n "$HOME" ]; then
+    STATE_FILE="$HOME/.device_registered"
+elif [ -n "$USERPROFILE" ]; then
+    # Windows
+    STATE_FILE="$USERPROFILE/.device_registered"
+else
+    # Fallback to current directory
+    STATE_FILE=".device_registered"
+fi
+
+# Migration: Copy old state file from project directory to home directory if exists
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-STATE_FILE="$SCRIPT_DIR/.device_registered"
+OLD_STATE_FILE="$SCRIPT_DIR/.device_registered"
+if [ -f "$OLD_STATE_FILE" ] && [ ! -f "$STATE_FILE" ]; then
+    # Old file exists in project directory, but new location doesn't exist
+    # Copy to home directory for compatibility
+    cp "$OLD_STATE_FILE" "$STATE_FILE" 2>/dev/null || true
+fi
 
 # Check mode: when CHECK_ONLY=true, skip upload and interaction, only check device status and return exit code
 CHECK_ONLY="${CHECK_ONLY:-false}"

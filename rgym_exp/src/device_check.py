@@ -82,8 +82,28 @@ def check_device_status(force: bool = False) -> int:
     if not device_code:
         return -1
     
-    # Check local state file
-    state_file = ".device_registered"
+    # Check local state file (in user home directory, cross-platform)
+    # os.path.expanduser works on all platforms (Unix, Windows, macOS)
+    state_file = os.path.expanduser(os.path.join("~", ".device_registered"))
+    
+    # Migration: Copy old state file from project directory to home directory if exists
+    # Try to find project root (look for common project files)
+    old_state_file = None
+    current_dir = os.getcwd()
+    # Check current directory and parent directories for old .device_registered
+    for check_dir in [current_dir, os.path.dirname(current_dir), os.path.dirname(os.path.dirname(current_dir))]:
+        old_path = os.path.join(check_dir, ".device_registered")
+        if os.path.exists(old_path):
+            old_state_file = old_path
+            break
+    
+    # If old file exists but new location doesn't, migrate it
+    if old_state_file and not os.path.exists(state_file):
+        try:
+            import shutil
+            shutil.copy2(old_state_file, state_file)
+        except Exception:
+            pass  # Migration failed, continue with new location
     
     if not os.path.exists(state_file):
         return 2
