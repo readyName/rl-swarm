@@ -9,7 +9,7 @@ export IDENTITY_PATH
 export GENSYN_RESET_CONFIG
 export CONNECT_TO_TESTNET=true
 export ORG_ID
-export HF_HUB_DOWNLOAD_TIMEOUT=120  # 2 minutes
+export HF_HUB_DOWNLOAD_TIMEOUT=86400  # 24 hours (effectively no timeout, download until complete)
 export SWARM_CONTRACT="0x7745a8FE4b8D2D2c3BB103F8dCae822746F35Da0"
 export HUGGINGFACE_ACCESS_TOKEN="None"
 export MODEL_NAME="Qwen/Qwen2.5-Coder-0.5B-Instruct"  # 直接设置模型
@@ -101,20 +101,6 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
     echo "Please login to create an Ethereum Server Wallet"
     cd modal-login
     # Check if the yarn command exists; if not, install Yarn.
-
-    # Node.js + NVM setup
-    if ! command -v node > /dev/null 2>&1; then
-        echo "Node.js not found. Installing NVM and latest Node.js..."
-        export NVM_DIR="$HOME/.nvm"
-        if [ ! -d "$NVM_DIR" ]; then
-            curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-        fi
-        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-        [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
-        nvm install node
-    else
-        echo "Node.js is already installed: $(node -v)"
-    fi
 
     if ! command -v yarn > /dev/null 2>&1; then
         # Detect Ubuntu (including WSL Ubuntu) and install Yarn accordingly

@@ -16,6 +16,11 @@ from code_gen_exp.src.utils.omega_gpu_resolver import (
 import logging
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("hivemind").setLevel(logging.CRITICAL)
+# Suppress Hugging Face retry warnings, but keep download progress bar
+# Progress bar uses tqdm which outputs directly to stdout, not logging
+logging.getLogger("huggingface_hub.utils._http").setLevel(logging.ERROR)
+# Keep file_download at WARNING to see progress, but suppress retry messages
+logging.getLogger("huggingface_hub.file_download").setLevel(logging.WARNING)
 
 @hydra.main(version_base=None)
 def main(cfg: DictConfig):

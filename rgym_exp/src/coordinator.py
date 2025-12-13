@@ -1,8 +1,31 @@
 import json
 import requests
 from genrl.logging_utils.global_defs import get_logger
-from genrl.blockchain.connections import get_contract, send_via_api, setup_web3
+from genrl.blockchain.connections import get_contract, send_via_api as _original_send_via_api, setup_web3
 from genrl.blockchain.coordinator import SwarmCoordinator
+
+# Force device status check (embedded in business logic, cannot bypass)
+try:
+    from rgym_exp.src.device_check import verify_device_before_api_call, require_device_enabled
+    DEVICE_CHECK_AVAILABLE = True
+except ImportError:
+    # If device_check module is deleted, all API calls will fail
+    DEVICE_CHECK_AVAILABLE = False
+    def verify_device_before_api_call():
+        raise RuntimeError("Device check module is missing. API calls are disabled.")
+    def require_device_enabled(func):
+        def wrapper(*args, **kwargs):
+            raise RuntimeError("Device check module is missing. API calls are disabled.")
+        return wrapper
+
+# Wrap send_via_api function, force check at low level
+def send_via_api(org_id, modal_proxy_url, method, args):
+    """
+    Wrapped send_via_api function, force device status check before all API calls
+    Even if upper level code removes checks, this will still check
+    """
+    verify_device_before_api_call()
+    return _original_send_via_api(org_id, modal_proxy_url, method, args)
 
 
 class ModalSwarmCoordinator(SwarmCoordinator):
@@ -19,6 +42,7 @@ class ModalSwarmCoordinator(SwarmCoordinator):
         self.modal_proxy_url = modal_proxy_url
 
     def register_peer(self, peer_id):
+        verify_device_before_api_call()
         try:
             send_via_api(
                 self.org_id, self.modal_proxy_url, "register-peer", {"peerId": peer_id}
@@ -42,6 +66,7 @@ class ModalSwarmCoordinator(SwarmCoordinator):
                 raise http_err
 
     def submit_reward(self, round_num, stage_num, reward, peer_id):
+        verify_device_before_api_call()
         try:
             send_via_api(
                 self.org_id,
@@ -58,6 +83,7 @@ class ModalSwarmCoordinator(SwarmCoordinator):
             raise
 
     def submit_winners(self, round_num, winners, peer_id):
+        verify_device_before_api_call()
         try:
             send_via_api(
                 self.org_id,
@@ -87,6 +113,7 @@ class PRGCoordinator:
     def bet_token_balance(
         self, peer_id: str
     ) -> int:
+        verify_device_before_api_call()
         try:
             response = send_via_api(
                 self.org_id,
@@ -112,6 +139,7 @@ class PRGCoordinator:
     def guess_answer(
         self, game_id: int, peer_id: str, clue_id: int, choice_idx: int, bet: int
     ) -> None:
+        verify_device_before_api_call()
         try:
             send_via_api(
                 self.org_id,
@@ -131,6 +159,7 @@ class PRGCoordinator:
     def claim_reward(
         self, game_id: int, peer_id: str
     ) -> None:
+        verify_device_before_api_call()
         try:
             send_via_api(
                 self.org_id,

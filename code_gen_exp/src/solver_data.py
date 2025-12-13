@@ -2,6 +2,7 @@ import re
 from typing import Any, Dict, List, Tuple
 import random
 from copy import deepcopy
+import logging
 
 from datasets import Dataset, load_dataset, concatenate_datasets
 
@@ -11,6 +12,12 @@ from genrl.misc_utils.utils import generate_md5_hash_id
 from genrl.state import GameState, WorldState
 from genrl.communication.hivemind.hivemind_backend import HivemindBackend
 from code_gen_exp.src.utils.solver_data_mapper import MBPPMapper, CodeContestsMapper
+
+# Suppress Hugging Face retry warnings, but keep download progress bar
+# Progress bar uses tqdm which outputs directly to stdout, not logging
+logging.getLogger("huggingface_hub.utils._http").setLevel(logging.ERROR)
+# Keep file_download at WARNING to see progress, but suppress retry messages
+logging.getLogger("huggingface_hub.file_download").setLevel(logging.WARNING)
 
 
 SYSTEM_PROMPTS = {
@@ -64,11 +71,15 @@ class CodeGenerationDataManager(DataManager):
         self.num_transplant_trees = kwargs.get("num_transplant_trees", 1)
         assert self.num_transplant_trees >= 0
 
+        get_logger().info("Loading dataset: google-research-datasets/mbpp (streaming mode)")
         self.local_dataset_mbpp = load_dataset("google-research-datasets/mbpp", streaming=True)
         self.local_dataset_mbpp = self.local_dataset_mbpp.map(lambda x: add_source_dataset(x, 'mbpp'))
 
+        get_logger().info("Loading dataset: deepmind/code_contests (streaming mode)")
+        get_logger().info("Note: Files will be downloaded on first access. Download progress will be shown.")
         self.local_dataset_cc = load_dataset("deepmind/code_contests", streaming=True)
         self.local_dataset_cc = self.local_dataset_cc.map(lambda x: add_source_dataset(x, 'code_contests'))
+        get_logger().info("Datasets metadata loaded. Actual file download happens on first data access.")
 
         self.local_dataset = concatenate_datasets([self.local_dataset_mbpp['train'], 
                                                    self.local_dataset_cc['train']])
@@ -264,6 +275,8 @@ class CodeGenerationDataManager(DataManager):
         
         if self.local_batch_size > 0:
             try:
+                # First access to streaming dataset may trigger file download
+                # Progress bar will be shown if files need to be downloaded
                 local_data = next(self.local_dataset_iter)
             except StopIteration:
                 self.local_dataset_iter = iter(self.local_dataset)
