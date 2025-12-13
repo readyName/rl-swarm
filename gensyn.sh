@@ -1,5 +1,7 @@
 #!/bin/bash
 
+CONFIG_FILE="rgym_exp/config/rg-swarm.yaml"
+
 ENV_VAR="RL_SWARM_IP"
 
 # 根据操作系统选择环境变量配置文件
@@ -23,21 +25,63 @@ else
   SED_OPTION=""
 fi
 
-echo "🔍 检测环境变量配置文件: $ENV_FILE"
+# ----------- IP配置逻辑 -----------
+echo "🔧 检查IP配置..."
 
-# 检测并删除 RL_SWARM_IP 环境变量
+# 确保配置文件存在，避免后续操作报错
+[ -f "$ENV_FILE" ] || touch "$ENV_FILE"
+
+# 读取环境变量文件中的 RL_SWARM_IP
 if grep -q "^export $ENV_VAR=" "$ENV_FILE"; then
-  echo "⚠️ 检测到 $ENV_VAR 环境变量，正在删除..."
+  CURRENT_IP=$(grep "^export $ENV_VAR=" "$ENV_FILE" | tail -n1 | awk -F'=' '{print $2}' | tr -d '[:space:]' | tr -d '"')
+else
+  CURRENT_IP=""
+fi
+
+# 交互提示（10秒超时）
+if [ -n "$CURRENT_IP" ]; then
+  echo -n "检测到上次使用的 IP: $CURRENT_IP，是否继续使用？(Y/n, 10秒后默认Y): "
+  read -t 10 USE_LAST
+  if [[ "$USE_LAST" == "" || "$USE_LAST" =~ ^[Yy]$ ]]; then
+    NEW_IP="$CURRENT_IP"
+  else
+    read -p "请输入新的 initial_peers IP（直接回车跳过IP配置）: " NEW_IP
+  fi
+else
+  read -p "未检测到历史 IP，请输入 initial_peers IP（直接回车跳过IP配置）: " NEW_IP
+fi
+
+# 继续后续逻辑
+if [[ -z "$NEW_IP" ]]; then
+  echo "ℹ️ 未输入IP，跳过所有IP相关配置，继续执行。"
+else
+  # 只要有NEW_IP都写入一次配置文件
   if [[ "$OSTYPE" == "darwin"* ]]; then
-    # macOS 使用 sed -i ''
     sed -i '' "/^export $ENV_VAR=/d" "$ENV_FILE"
   else
-    # Linux 使用 sed -i
     sed -i "/^export $ENV_VAR=/d" "$ENV_FILE"
   fi
-  echo "✅ 已删除 $ENV_VAR 环境变量"
-else
-  echo "ℹ️ 未检测到 $ENV_VAR 环境变量，无需删除"
+  echo "export $ENV_VAR=$NEW_IP" >> "$ENV_FILE"
+  echo "✅ 已写入IP到配置文件：$NEW_IP"
+  
+  # 备份原文件
+  if [ -f "$CONFIG_FILE" ]; then
+    cp "$CONFIG_FILE" "${CONFIG_FILE}.bak"
+    
+    # 替换 initial_peers 下的 IP
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+      # macOS: 匹配 /ip4/旧IP/tcp/端口/p2p/节点ID 格式，只替换IP部分
+      sed -i '' "s|/ip4/[0-9]\{1,3\}\(\.[0-9]\{1,3\}\)\{3\}|/ip4/${NEW_IP}|g" "$CONFIG_FILE"
+    else
+      # Linux: 匹配 /ip4/旧IP/tcp/端口/p2p/节点ID 格式，只替换IP部分
+      sed -i "s|/ip4/[0-9]\{1,3\}\(\.[0-9]\{1,3\}\)\{3\}|/ip4/${NEW_IP}|g" "$CONFIG_FILE"
+    fi
+    
+    echo "✅ 已将 initial_peers 的 IP 全部替换为：$NEW_IP"
+    echo "原始文件已备份为：${CONFIG_FILE}.bak"
+  else
+    echo "⚠️ 配置文件 $CONFIG_FILE 不存在，跳过IP替换"
+  fi
 fi
 
 # 切换到脚本所在目录（假设 go.sh 在项目根目录）
