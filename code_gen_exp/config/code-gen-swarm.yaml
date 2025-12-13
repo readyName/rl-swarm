@@ -17,7 +17,7 @@ training:
   num_generations: 2
   num_transplant_trees: 2
   seed: 42
-  dtype: 'float32'
+  dtype: 'float16'
   max_new_tokens: 256
 
 reward_config:
